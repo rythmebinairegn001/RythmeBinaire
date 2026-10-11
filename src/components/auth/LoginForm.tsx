@@ -9,9 +9,26 @@ interface Props {
   onNavigate: (view: 'login' | 'register' | 'forgot') => void;
   onLoginSuccess: () => void;
   onBackToHome?: () => void;
+  /** Message d'information affiché en haut (ex : lien e-mail expiré) */
+  notice?: string;
 }
 
-export const LoginForm: React.FC<Props> = ({ lang, onNavigate, onLoginSuccess, onBackToHome }) => {
+// Messages d'erreur Supabase traduits en phrases claires FR/EN
+function friendlyAuthError(raw: string, lang: PreferredLanguage): string {
+  if (/email not confirmed/i.test(raw)) {
+    return lang === 'fr'
+      ? "Votre adresse e-mail n'est pas encore confirmée. Ouvrez l'e-mail que nous vous avons envoyé et cliquez sur le bouton, puis revenez ici."
+      : 'Your email address is not confirmed yet. Open the email we sent you and click the button, then come back here.';
+  }
+  if (/invalid login credentials/i.test(raw)) {
+    return lang === 'fr'
+      ? "E-mail ou mot de passe incorrect. Vérifiez vos informations, ou créez un compte si vous n'en avez pas encore."
+      : "Incorrect email or password. Check your details, or create an account if you don't have one yet.";
+  }
+  return raw;
+}
+
+export const LoginForm: React.FC<Props> = ({ lang, onNavigate, onLoginSuccess, onBackToHome, notice }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -67,7 +84,7 @@ export const LoginForm: React.FC<Props> = ({ lang, onNavigate, onLoginSuccess, o
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : t.common.error;
-      setErrorMsg(message);
+      setErrorMsg(friendlyAuthError(message, lang));
     } finally {
       setLoading(false);
     }
@@ -87,6 +104,16 @@ export const LoginForm: React.FC<Props> = ({ lang, onNavigate, onLoginSuccess, o
             {t.auth.loginSubtitle}
           </p>
         </div>
+
+        {notice && (
+          <div
+            id="login-notice-message"
+            className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3 text-amber-900 text-xs leading-relaxed"
+          >
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <span>{notice}</span>
+          </div>
+        )}
 
         {errorMsg && (
           <div
