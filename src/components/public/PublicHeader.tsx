@@ -1,5 +1,5 @@
 import React from 'react';
-import { Terminal, Shield, User, LogOut, Sun, Moon } from 'lucide-react';
+import { Shield, User, LogOut, Sun, Moon } from 'lucide-react';
 import { PreferredLanguage, UserProfile } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
 import { ThemeMode } from '../../lib/theme';
@@ -45,10 +45,14 @@ export const PublicHeader: React.FC<Props> = ({
             onClick={() => onNavigate('home')}
             className="flex items-center gap-3 group text-left transition"
           >
-            {/* Logo box with neon yellow/lime accent on dark navy */}
-            <div className="w-11 h-11 rounded-2xl bg-[#0F1B3B] border border-[#BEF264]/40 flex items-center justify-center text-[#BEF264] shadow-[0_0_15px_rgba(190,242,100,0.15)] group-hover:scale-105 transition-transform">
-              <Terminal className="w-5 h-5" />
-            </div>
+            {/* Logo officiel RythmeBinaireGn (public/logo.png, 96px, ~16 Ko) */}
+            <img
+              src="/logo.png"
+              alt="RythmeBinaireGn"
+              width={44}
+              height={44}
+              className="w-11 h-11 rounded-full shadow-[0_0_15px_rgba(190,242,100,0.15)] group-hover:scale-105 transition-transform"
+            />
 
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
