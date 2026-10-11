@@ -34,27 +34,32 @@ function saveLocalCompletedLessons(userId: string, data: Record<string, string[]
   }
 }
 
-// Helper to get local enrollments
-function getLocalEnrollments(userId: string): Enrollment[] {
+// Supprime les anciennes données fictives (inscription « démo » à 25 %) laissées par
+// les versions précédentes dans le navigateur de certains comptes de test.
+function purgeLegacyDemoData(userId: string): void {
   try {
     const raw = localStorage.getItem(`${ENROLLMENTS_STORAGE_KEY}_${userId}`);
-    if (!raw) {
-      // Default demo enrollment on python course for initial experience
-      const defaultEnrollment: Enrollment = {
-        id: `enr-demo-${userId}-course-python-02`,
-        user_id: userId,
-        course_id: 'course-python-02',
-        progress_percent: 25,
-        enrolled_at: new Date().toISOString(),
-      };
-      const initial = [defaultEnrollment];
-      localStorage.setItem(`${ENROLLMENTS_STORAGE_KEY}_${userId}`, JSON.stringify(initial));
-      // Set first lesson completed
-      saveLocalCompletedLessons(userId, {
-        'course-python-02': ['les-py-101'],
-      });
-      return initial;
+    if (!raw) return;
+    const list = JSON.parse(raw) as Enrollment[];
+    if (!list.some((e) => e.id.startsWith('enr-demo-'))) return;
+    saveLocalEnrollments(userId, list.filter((e) => !e.id.startsWith('enr-demo-')));
+    const done = getLocalCompletedLessons(userId);
+    const demoLessons = done['course-python-02'];
+    if (demoLessons && demoLessons.length === 1 && demoLessons[0] === 'les-py-101') {
+      delete done['course-python-02'];
+      saveLocalCompletedLessons(userId, done);
     }
+  } catch {
+    // sans importance : on ignore
+  }
+}
+
+// Helper to get local enrollments (vide pour un nouvel élève : aucune progression fictive)
+function getLocalEnrollments(userId: string): Enrollment[] {
+  try {
+    purgeLegacyDemoData(userId);
+    const raw = localStorage.getItem(`${ENROLLMENTS_STORAGE_KEY}_${userId}`);
+    if (!raw) return [];
     return JSON.parse(raw);
   } catch {
     return [];
@@ -86,11 +91,16 @@ export async function getStudentEnrollments(userId: string): Promise<Enrollment[
       .eq('user_id', userId)
       .order('enrolled_at', { ascending: false });
 
-    if (error || !data || data.length === 0) {
+    if (error || !data) {
       return localList;
     }
 
-    return data as Enrollment[];
+    // Fusion : inscriptions de la base + inscriptions gardées sur cet appareil
+    // (les cours d'exemple ne peuvent pas être enregistrés dans la base).
+    // Un nouvel élève n'a ni l'une ni l'autre : la liste reste vide.
+    const remote = data as Enrollment[];
+    const remoteCourseIds = new Set(remote.map((e) => e.course_id));
+    return [...remote, ...localList.filter((e) => !remoteCourseIds.has(e.course_id))];
   } catch (err) {
     console.warn('Supabase enrollments fetch error, using local state:', err);
     return localList;
@@ -149,6 +159,63 @@ export async function enrollStudentInCourse(userId: string, courseId: string): P
 }
 
 /**
+ * Synchronise les leçons terminées avec Supabase (table lesson_progress).
+ * - ce qui est terminé sur un autre appareil est récupéré ici ;
+ * - ce qui a été terminé ici (même hors ligne) est envoyé à la base ;
+ * Le navigateur garde une copie locale : l'application continue de fonctionner
+ * si la connexion coupe, ou si la table n'existe pas encore (échec silencieux).
+ */
+export async function syncCompletedLessons(userId: string): Promise<void> {
+  purgeLegacyDemoData(userId); // jamais d'envoi de données fictives vers la base
+  if (!isSupabaseConfigured()) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('lesson_progress')
+      .select('course_id, lesson_id')
+      .eq('user_id', userId);
+
+    if (error || !data) return;
+
+    const local = getLocalCompletedLessons(userId);
+    const merged: Record<string, Set<string>> = {};
+    for (const [courseId, ids] of Object.entries(local)) {
+      merged[courseId] = new Set(ids);
+    }
+
+    const remoteKeys = new Set<string>();
+    for (const row of data as { course_id: string; lesson_id: string }[]) {
+      remoteKeys.add(`${row.course_id}::${row.lesson_id}`);
+      if (!merged[row.course_id]) merged[row.course_id] = new Set();
+      merged[row.course_id].add(row.lesson_id);
+    }
+
+    // Envoi des leçons terminées localement et absentes de la base
+    const missing: { user_id: string; course_id: string; lesson_id: string }[] = [];
+    for (const [courseId, ids] of Object.entries(local)) {
+      for (const lessonId of ids) {
+        if (!remoteKeys.has(`${courseId}::${lessonId}`)) {
+          missing.push({ user_id: userId, course_id: courseId, lesson_id: lessonId });
+        }
+      }
+    }
+    if (missing.length > 0) {
+      await supabase
+        .from('lesson_progress')
+        .upsert(missing, { onConflict: 'user_id,course_id,lesson_id', ignoreDuplicates: true });
+    }
+
+    const result: Record<string, string[]> = {};
+    for (const [courseId, ids] of Object.entries(merged)) {
+      result[courseId] = Array.from(ids);
+    }
+    saveLocalCompletedLessons(userId, result);
+  } catch (err) {
+    console.warn('Progress sync skipped:', err);
+  }
+}
+
+/**
  * Retrieve completed lessons for a user and course
  */
 export function getCompletedLessonIds(userId: string, courseId: string): string[] {
@@ -174,6 +241,20 @@ export async function markLessonCompleted(
   const updatedCompletedList = Array.from(currentCompleted);
   map[courseId] = updatedCompletedList;
   saveLocalCompletedLessons(userId, map);
+
+  // Enregistre la leçon terminée dans la base (suivie sur tous les appareils)
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase
+        .from('lesson_progress')
+        .upsert(
+          [{ user_id: userId, course_id: courseId, lesson_id: lessonId }],
+          { onConflict: 'user_id,course_id,lesson_id', ignoreDuplicates: true }
+        );
+    } catch (err) {
+      console.warn('Could not save lesson progress to Supabase:', err);
+    }
+  }
 
   // Calculate new progress percent
   const allLessons = getCourseLessonsList(courseId);
@@ -229,16 +310,46 @@ export function getNextUncompletedLesson(userId: string, courseId: string): Deta
  * Build rich overview for all student enrollments
  */
 export async function getStudentCoursesProgress(userId: string): Promise<StudentCourseProgress[]> {
+  // Récupère d'abord la progression faite sur d'autres appareils
+  await syncCompletedLessons(userId);
+
   const enrollments = await getStudentEnrollments(userId);
 
-  return enrollments.map((enr) => {
+  // Un cours avec des leçons terminées mais sans inscription connue sur cet appareil
+  // (ex : progression faite ailleurs) est ajouté automatiquement.
+  const known = new Set(enrollments.map((e) => e.course_id));
+  const completedMap = getLocalCompletedLessons(userId);
+  const derived: Enrollment[] = [];
+  for (const [courseId, ids] of Object.entries(completedMap)) {
+    if (ids.length === 0 || known.has(courseId)) continue;
+    const total = getCourseLessonsList(courseId).length || ids.length;
+    derived.push({
+      id: `enr-derived-${userId}-${courseId}`,
+      user_id: userId,
+      course_id: courseId,
+      progress_percent: Math.min(100, Math.round((ids.length / total) * 100)),
+      enrolled_at: new Date().toISOString(),
+    });
+  }
+  if (derived.length > 0) {
+    saveLocalEnrollments(userId, [...derived, ...getLocalEnrollments(userId)]);
+  }
+
+  return [...enrollments, ...derived].map((enr) => {
     const completed = getCompletedLessonIds(userId, enr.course_id);
     const allLessons = getCourseLessonsList(enr.course_id);
     const nextLesson = getNextUncompletedLesson(userId, enr.course_id);
 
+    // Le pourcentage est calculé à partir des leçons réellement terminées (toujours à jour,
+    // même après une progression faite hors ligne ou sur un autre appareil).
+    const progressPercent =
+      allLessons.length > 0
+        ? Math.min(100, Math.round((completed.length / allLessons.length) * 100))
+        : enr.progress_percent;
+
     return {
       courseId: enr.course_id,
-      progressPercent: enr.progress_percent,
+      progressPercent,
       enrolledAt: enr.enrolled_at,
       completedLessonIds: completed,
       totalLessonsCount: allLessons.length,

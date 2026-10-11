@@ -474,6 +474,35 @@ BEGIN
 END;
 $$;
 
+-- ------------------------------------------------------------------------------
+-- 16. LESSON PROGRESS (leçons terminées par chaque élève, synchronisées entre appareils)
+-- Les identifiants de cours/leçons sont en TEXT : ils fonctionnent aussi bien avec
+-- les cours d'exemple qu'avec les cours créés plus tard dans la base.
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.lesson_progress (
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    course_id TEXT NOT NULL,
+    lesson_id TEXT NOT NULL,
+    completed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, course_id, lesson_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lesson_progress_user ON public.lesson_progress(user_id);
+
+ALTER TABLE public.lesson_progress ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Eleve reads own lesson progress" ON public.lesson_progress;
+CREATE POLICY "Eleve reads own lesson progress"
+    ON public.lesson_progress FOR SELECT
+    USING (auth.uid() = user_id OR public.is_admin());
+
+DROP POLICY IF EXISTS "Eleve records own lesson progress" ON public.lesson_progress;
+CREATE POLICY "Eleve records own lesson progress"
+    ON public.lesson_progress FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+GRANT SELECT, INSERT ON public.lesson_progress TO authenticated;
+
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users

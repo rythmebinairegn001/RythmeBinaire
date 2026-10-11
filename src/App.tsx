@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { UserProfile, PreferredLanguage, CourseTrack } from './types/database';
 import { PublicCourseItem, INITIAL_COURSES } from './data/coursesData';
@@ -72,6 +72,10 @@ export default function App() {
   };
 
   const [currentView, setCurrentView] = useState<AppView>('home');
+  // Vrai quand l'utilisateur arrive depuis le lien de confirmation de l'e-mail
+  const confirmedFromEmailRef = useRef(false);
+  // Code d'un problème de lien e-mail (ex : lien expiré), affiché sur la page de connexion
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [catalogTrackFilter, setCatalogTrackFilter] = useState<CourseTrack | 'all'>('all');
   const [selectedCourseForDetail, setSelectedCourseForDetail] = useState<PublicCourseItem | null>(null);
 
@@ -165,25 +169,40 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Check if recovery link was clicked
+    // Lecture du lien reçu par e-mail (Supabase place les infos après le # de l'adresse)
     const hash = window.location.hash;
-    if (hash.includes('type=recovery') || hash.includes('access_token')) {
+    const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
+    const cleanUrl = () =>
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+
+    if (hash.includes('type=recovery')) {
+      // Lien « mot de passe oublié » → formulaire de nouveau mot de passe
       setCurrentView('reset');
+    } else if (hashParams.get('error')) {
+      // Lien de confirmation expiré ou déjà utilisé
+      setAuthNotice(hashParams.get('error_code') || 'link-error');
+      setCurrentView('login');
+      cleanUrl();
+    } else if (hashParams.get('access_token')) {
+      // Lien « confirmer mon compte » : la session est créée automatiquement
+      // par Supabase, on enverra ensuite l'élève directement sur son tableau de bord.
+      confirmedFromEmailRef.current = true;
     }
 
-    // Check if a demo student was previously signed in
+    // Une fois le compte confirmé par e-mail, on connecte directement l'élève
+    const goToDashboardIfConfirmedByEmail = () => {
+      if (!confirmedFromEmailRef.current) return;
+      confirmedFromEmailRef.current = false;
+      cleanUrl();
+      setCurrentView('student-dashboard');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Nettoyage : supprime d'anciens comptes « démo » restés dans le navigateur
     try {
-      const storedDemo = localStorage.getItem('rythmebinaire_demo_user');
-      if (storedDemo) {
-        const parsed = JSON.parse(storedDemo) as UserProfile;
-        setSessionUser(parsed);
-        setUserEmail(parsed.email);
-        if (parsed.preferred_language) {
-          setLang(parsed.preferred_language);
-        }
-      }
-    } catch (e) {
-      console.warn('Demo user load error', e);
+      localStorage.removeItem('rythmebinaire_demo_user');
+    } catch {
+      // sans importance
     }
 
     if (!isSupabaseConfigured()) {
@@ -200,6 +219,7 @@ export default function App() {
           session.user.email || '',
           session.user.user_metadata || {}
         );
+        goToDashboardIfConfirmedByEmail();
       }
       setLoading(false);
     });
@@ -216,13 +236,10 @@ export default function App() {
             session.user.email || '',
             session.user.user_metadata || {}
           );
+          goToDashboardIfConfirmedByEmail();
         } else {
-          // If no supabase session, keep demo user if present, or clear
-          const storedDemo = localStorage.getItem('rythmebinaire_demo_user');
-          if (!storedDemo) {
-            setSessionUser(null);
-            setUserEmail(null);
-          }
+          setSessionUser(null);
+          setUserEmail(null);
         }
         setLoading(false);
       }
@@ -233,43 +250,7 @@ export default function App() {
     };
   }, []);
 
-  const handleEnableDemoStudent = () => {
-    const demoStudent: UserProfile = {
-      id: 'usr-demo-eleve-amina',
-      email: 'amina.diallo@rythmebinaire.gn',
-      full_name: 'Amina Diallo',
-      role: 'eleve',
-      preferred_language: lang,
-      created_at: '2026-02-15T09:00:00Z',
-      status: 'active',
-    };
-    localStorage.setItem('rythmebinaire_demo_user', JSON.stringify(demoStudent));
-    setSessionUser(demoStudent);
-    setUserEmail(demoStudent.email);
-    refreshEnrollmentsProgress(demoStudent.id);
-    setCurrentView('student-dashboard');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleEnableDemoAdmin = () => {
-    const demoAdmin: UserProfile = {
-      id: 'usr-demo-admin-moussa',
-      email: 'admin@rythmebinaire.gn',
-      full_name: 'Moussa Kéita (Admin)',
-      role: 'admin',
-      preferred_language: lang,
-      created_at: '2026-01-10T08:00:00Z',
-      status: 'active',
-    };
-    localStorage.setItem('rythmebinaire_demo_user', JSON.stringify(demoAdmin));
-    setSessionUser(demoAdmin);
-    setUserEmail(demoAdmin.email);
-    setCurrentView('admin-dashboard');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   const handleLogout = async () => {
-    localStorage.removeItem('rythmebinaire_demo_user');
     if (isSupabaseConfigured()) {
       try {
         await supabase.auth.signOut();
@@ -406,8 +387,16 @@ export default function App() {
                       lang={lang}
                       onNavigate={(view) => setCurrentView(view as AppView)}
                       onLoginSuccess={() => {
+                        setAuthNotice(null);
                         setCurrentView('student-dashboard');
                       }}
+                      notice={
+                        authNotice
+                          ? lang === 'fr'
+                            ? "Ce lien de confirmation a expiré ou a déjà été utilisé. Si vous avez déjà confirmé votre e-mail, connectez-vous simplement. Sinon, recréez votre compte pour recevoir un nouveau lien."
+                            : 'This confirmation link has expired or was already used. If you already confirmed your email, just sign in. Otherwise, sign up again to get a new link.'
+                          : undefined
+                      }
                       onBackToHome={() => setCurrentView('home')}
                     />
                   )}
@@ -418,6 +407,10 @@ export default function App() {
                       onNavigate={(view) => setCurrentView(view as AppView)}
                       onRegisterSuccess={() => {
                         setCurrentView('login');
+                      }}
+                      onAuthenticated={() => {
+                        setCurrentView('student-dashboard');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
                       onBackToHome={() => setCurrentView('home')}
                     />
@@ -460,7 +453,6 @@ export default function App() {
                     user={sessionUser}
                     lang={lang}
                     onLoginClick={() => setCurrentView('login')}
-                    onEnableDemoStudent={handleEnableDemoStudent}
                     onBackToHome={() => setCurrentView('home')}
                   />
                 )}
@@ -492,7 +484,6 @@ export default function App() {
                     user={sessionUser}
                     lang={lang}
                     onLoginClick={() => setCurrentView('login')}
-                    onEnableDemoStudent={handleEnableDemoStudent}
                     onBackToHome={() => setCurrentView('home')}
                   />
                 )}
@@ -534,7 +525,6 @@ export default function App() {
                     user={sessionUser}
                     lang={lang}
                     onLoginClick={() => setCurrentView('login')}
-                    onEnableDemoStudent={handleEnableDemoStudent}
                     onBackToHome={() => setCurrentView('home')}
                   />
                 )}
@@ -575,7 +565,6 @@ export default function App() {
                     user={sessionUser}
                     lang={lang}
                     onLoginClick={() => setCurrentView('login')}
-                    onEnableDemoStudent={handleEnableDemoStudent}
                     onBackToHome={() => setCurrentView('home')}
                   />
                 )}
@@ -593,7 +582,6 @@ export default function App() {
                         lang={lang}
                         onNavigate={(v) => setCurrentView(v as AppView)}
                         onLoginClick={() => setCurrentView('login')}
-                        onEnableDemoAdmin={handleEnableDemoAdmin}
                         onBackToHome={() => setCurrentView('home')}
                       />
                     </div>
@@ -632,7 +620,6 @@ export default function App() {
                   lang={lang}
                   onNavigate={(v) => setCurrentView(v as AppView)}
                   onLoginClick={() => setCurrentView('login')}
-                  onEnableDemoAdmin={handleEnableDemoAdmin}
                   onBackToHome={() => setCurrentView('home')}
                 />
               </div>

@@ -36,7 +36,6 @@ interface Props {
   lang: PreferredLanguage;
   onNavigate: (view: string, id?: string) => void;
   onLoginClick: () => void;
-  onEnableDemoAdmin: () => void;
   onBackToHome: () => void;
 }
 
@@ -45,7 +44,6 @@ export const AdminDashboard: React.FC<Props> = ({
   lang,
   onNavigate,
   onLoginClick,
-  onEnableDemoAdmin,
   onBackToHome,
 }) => {
   const t = getTranslation(lang);
@@ -94,7 +92,6 @@ export const AdminDashboard: React.FC<Props> = ({
         user={user}
         lang={lang}
         onLoginClick={onLoginClick}
-        onEnableDemoAdmin={onEnableDemoAdmin}
         onBackToHome={onBackToHome}
       />
     );

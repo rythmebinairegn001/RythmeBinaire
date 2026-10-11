@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, ArrowLeft, LogIn, KeyRound } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, LogIn } from 'lucide-react';
 import { PreferredLanguage, UserProfile } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
 
@@ -7,7 +7,6 @@ interface Props {
   user: UserProfile | null;
   lang: PreferredLanguage;
   onLoginClick: () => void;
-  onEnableDemoAdmin: () => void;
   onBackToHome: () => void;
 }
 
@@ -15,7 +14,6 @@ export const AdminAccessDenied: React.FC<Props> = ({
   user,
   lang,
   onLoginClick,
-  onEnableDemoAdmin,
   onBackToHome,
 }) => {
   const t = getTranslation(lang);
@@ -63,16 +61,6 @@ export const AdminAccessDenied: React.FC<Props> = ({
           >
             <LogIn className="w-4 h-4" />
             <span>Se connecter</span>
-          </button>
-
-          <button
-            id="btn-admin-demo-enable"
-            type="button"
-            onClick={onEnableDemoAdmin}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition active:scale-95 flex items-center justify-center gap-2 shadow-sm"
-          >
-            <KeyRound className="w-4 h-4" />
-            <span>{lang === 'fr' ? 'Tester en mode Admin Démo' : 'Test as Demo Admin'}</span>
           </button>
         </div>
 

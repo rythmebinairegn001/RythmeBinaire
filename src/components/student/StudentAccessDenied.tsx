@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, LogIn, Sparkles, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, LogIn, ArrowLeft } from 'lucide-react';
 import { PreferredLanguage, UserProfile } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
 
@@ -7,7 +7,6 @@ interface Props {
   user: UserProfile | null;
   lang: PreferredLanguage;
   onLoginClick: () => void;
-  onEnableDemoStudent: () => void;
   onBackToHome: () => void;
 }
 
@@ -15,7 +14,6 @@ export const StudentAccessDenied: React.FC<Props> = ({
   user,
   lang,
   onLoginClick,
-  onEnableDemoStudent,
   onBackToHome,
 }) => {
   const t = getTranslation(lang);
@@ -49,16 +47,6 @@ export const StudentAccessDenied: React.FC<Props> = ({
         >
           <LogIn className="w-4 h-4 text-[#BEF264]" />
           <span>{t.student.loginAsStudent}</span>
-        </button>
-
-        <button
-          id="btn-access-denied-demo"
-          type="button"
-          onClick={onEnableDemoStudent}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-blue-50 text-blue-700 font-semibold text-xs border border-blue-200 hover:bg-blue-100 transition shadow-sm"
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>{t.student.tryDemoStudent}</span>
         </button>
       </div>
 

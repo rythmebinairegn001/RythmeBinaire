@@ -205,68 +205,6 @@ export const LoginForm: React.FC<Props> = ({ lang, onNavigate, onLoginSuccess, o
               </>
             )}
           </button>
-
-          {/* Quick Demo Student Access for Evaluation / Prototyping */}
-          <div className="pt-2">
-            <button
-              type="button"
-              id="btn-login-demo-student"
-              onClick={() => {
-                // Immediate demo login
-                localStorage.setItem(
-                  'rythmebinaire_demo_user',
-                  JSON.stringify({
-                    id: 'usr-demo-eleve-amina',
-                    email: 'amina.diallo@rythmebinaire.gn',
-                    full_name: 'Amina Diallo',
-                    role: 'eleve',
-                    preferred_language: lang,
-                    created_at: '2026-02-15T09:00:00Z',
-                    status: 'active',
-                  })
-                );
-                window.dispatchEvent(new Event('storage'));
-                onLoginSuccess();
-              }}
-              className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200/80 active:scale-95 text-slate-800 text-xs font-semibold transition border border-slate-200/80 flex items-center justify-center gap-2"
-            >
-              <span>🎓</span>
-              <span>
-                {lang === 'fr'
-                  ? 'Tester avec le compte démo élève (Amina Diallo)'
-                  : 'Test with student demo account (Amina Diallo)'}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              id="btn-demo-admin-login"
-              onClick={() => {
-                localStorage.setItem(
-                  'rythmebinaire_demo_user',
-                  JSON.stringify({
-                    id: 'usr-demo-admin-moussa',
-                    email: 'admin@rythmebinaire.gn',
-                    full_name: 'Moussa Kéita (Admin)',
-                    role: 'admin',
-                    preferred_language: lang,
-                    created_at: '2026-01-10T08:00:00Z',
-                    status: 'active',
-                  })
-                );
-                window.dispatchEvent(new Event('storage'));
-                onLoginSuccess();
-              }}
-              className="w-full py-2.5 px-4 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 active:scale-95 text-xs font-semibold transition border border-purple-200 flex items-center justify-center gap-2"
-            >
-              <span>🔑</span>
-              <span>
-                {lang === 'fr'
-                  ? 'Tester avec le compte démo admin (Moussa Kéita)'
-                  : 'Test with admin demo account (Moussa Kéita)'}
-              </span>
-            </button>
-          </div>
         </form>
 
         <div className="mt-8 pt-6 border-t border-zinc-100 text-center space-y-3">

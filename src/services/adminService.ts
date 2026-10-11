@@ -416,116 +416,74 @@ export async function getStudentsListAdmin(): Promise<AdminStudentItem[]> {
         .eq('role', 'eleve')
         .order('created_at', { ascending: false });
 
-      if (!error && users && users.length > 0) {
-        return users.map((u: any) => ({
-          id: u.id,
-          email: u.email,
-          full_name: u.full_name || 'Élève sans nom',
-          role: 'eleve',
-          preferred_language: u.preferred_language || 'fr',
-          created_at: u.created_at,
-          status: u.status || 'actif',
-          enrollments: (u.enrollments || []).map((e: any) => {
+      if (!error && users) {
+        // Leçons réellement terminées par chaque élève (table lesson_progress, lisible par l'admin)
+        const done = new Map<string, Set<string>>(); // "userId::courseId" -> leçons terminées
+        try {
+          const { data: rows } = await supabase
+            .from('lesson_progress')
+            .select('user_id, course_id, lesson_id')
+            .in('user_id', users.map((u: any) => u.id));
+          for (const r of (rows || []) as any[]) {
+            const key = `${r.user_id}::${r.course_id}`;
+            if (!done.has(key)) done.set(key, new Set());
+            done.get(key)!.add(r.lesson_id);
+          }
+        } catch {
+          // table pas encore créée : on affiche seulement les inscriptions
+        }
+
+        const titleOf = (courseId: string): string =>
+          INITIAL_COURSES.find((c) => c.id === courseId)?.translations.fr.title || 'Cours';
+        const totalOf = (courseId: string, completed: number): number =>
+          Math.max(DETAILED_COURSE_MODULES[courseId]?.reduce((n, m) => n + m.lessons.length, 0) || 0, completed);
+
+        return users.map((u: any) => {
+          const enrolled = (u.enrollments || []) as any[];
+          const rows = enrolled.map((e: any) => {
             const courseTitle =
               e.courses?.course_translations?.find((ct: any) => ct.lang === 'fr')?.title ||
-              'Cours officiel';
+              titleOf(e.course_id);
+            const completed = done.get(`${u.id}::${e.course_id}`)?.size || 0;
             return {
               courseId: e.course_id,
               courseTitle,
               progressPercent: e.progress_percent || 0,
-              completedLessonsCount: Math.round(((e.progress_percent || 0) * 12) / 100),
-              totalLessonsCount: 12,
+              completedLessonsCount: completed,
+              totalLessonsCount: totalOf(e.course_id, completed),
             };
-          }),
-        }));
+          });
+          // Cours avec progression mais sans inscription en base (cours d'exemple)
+          const listed = new Set(rows.map((r) => r.courseId));
+          for (const [key, lessons] of done.entries()) {
+            const [uid, courseId] = key.split('::');
+            if (uid !== u.id || listed.has(courseId)) continue;
+            const total = totalOf(courseId, lessons.size);
+            rows.push({
+              courseId,
+              courseTitle: titleOf(courseId),
+              progressPercent: total > 0 ? Math.min(100, Math.round((lessons.size / total) * 100)) : 0,
+              completedLessonsCount: lessons.size,
+              totalLessonsCount: total,
+            });
+          }
+          return {
+            id: u.id,
+            email: u.email,
+            full_name: u.full_name || 'Élève sans nom',
+            role: 'eleve',
+            preferred_language: u.preferred_language || 'fr',
+            created_at: u.created_at,
+            status: u.status || 'actif',
+            enrollments: rows,
+          };
+        });
       }
     } catch (e) {
       console.warn('Failed querying students from Supabase:', e);
     }
   }
 
-  // Realistic mock students directory for MVP
-  const fallbackStudents: AdminStudentItem[] = [
-    {
-      id: 'usr-demo-eleve-amina',
-      email: 'amina.diallo@rythmebinaire.gn',
-      full_name: 'Amina Diallo',
-      role: 'eleve',
-      preferred_language: 'fr',
-      created_at: '2026-02-15T09:00:00Z',
-      status: 'active',
-      enrollments: [
-        {
-          courseId: 'course-python-02',
-          courseTitle: 'Python : De la syntaxe aux algorithmes concrets',
-          progressPercent: 33,
-          completedLessonsCount: 4,
-          totalLessonsCount: 12,
-        },
-        {
-          courseId: 'course-scratch-01',
-          courseTitle: 'Scratch : Premiers pas dans la pensée algorithmique',
-          progressPercent: 100,
-          completedLessonsCount: 4,
-          totalLessonsCount: 4,
-        },
-      ],
-    },
-    {
-      id: 'usr-student-mamadou',
-      email: 'mamadou.barry@gmail.com',
-      full_name: 'Mamadou Barry',
-      role: 'eleve',
-      preferred_language: 'fr',
-      created_at: '2026-02-18T14:20:00Z',
-      status: 'active',
-      enrollments: [
-        {
-          courseId: 'course-python-02',
-          courseTitle: 'Python : De la syntaxe aux algorithmes concrets',
-          progressPercent: 50,
-          completedLessonsCount: 6,
-          totalLessonsCount: 12,
-        },
-      ],
-    },
-    {
-      id: 'usr-student-fatou',
-      email: 'fatoumata.camara@yahoo.fr',
-      full_name: 'Fatoumata Camara',
-      role: 'eleve',
-      preferred_language: 'fr',
-      created_at: '2026-02-22T11:45:00Z',
-      status: 'active',
-      enrollments: [
-        {
-          courseId: 'course-cyber-04',
-          courseTitle: 'Cybersécurité du quotidien : Réflexes & Protection des données',
-          progressPercent: 75,
-          completedLessonsCount: 6,
-          totalLessonsCount: 8,
-        },
-      ],
-    },
-    {
-      id: 'usr-student-ibrahima',
-      email: 'ibrahima.sow@orange.gn',
-      full_name: 'Ibrahima Sow',
-      role: 'eleve',
-      preferred_language: 'en',
-      created_at: '2026-03-01T08:15:00Z',
-      status: 'active',
-      enrollments: [
-        {
-          courseId: 'course-web-03',
-          courseTitle: 'HTML, CSS & JavaScript : Créer pour le web moderne',
-          progressPercent: 20,
-          completedLessonsCount: 2,
-          totalLessonsCount: 10,
-        },
-      ],
-    },
-  ];
-
-  return fallbackStudents;
+  // Aucun élève (ou base non connectée) : liste vide, plus de faux élèves
+  return [];
 }
