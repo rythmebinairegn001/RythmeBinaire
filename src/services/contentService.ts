@@ -442,3 +442,114 @@ export async function importSampleCourses(): Promise<number> {
   }
   return count;
 }
+
+// ---------------------------------------------------------------------------
+// IMPORT D'UN FICHIER DE COURS (.json) — AJOUT SANS ÉCRASER
+// ---------------------------------------------------------------------------
+
+export interface CourseContentFile {
+  format: 'rythmebinaire-course-v1';
+  /** Identifiant du cours (celui du cours d'exemple, ex : "course-python-02", ou un UUID) */
+  courseId: string;
+  modules: DetailedModule[];
+  /** Tests des exercices, indexés par identifiant d'exercice */
+  tests?: Record<string, Array<{ input: string | null; expected_output: string; is_hidden: boolean }>>;
+}
+
+export interface ImportReport {
+  courseId: string;
+  addedModules: number;
+  addedLessons: number;
+  skippedLessons: number;
+}
+
+/**
+ * Fusionne le contenu d'un fichier dans le contenu existant.
+ * - Une leçon déjà présente (même identifiant) n'est JAMAIS modifiée.
+ * - Les modules et leçons nouveaux sont ajoutés.
+ * Fonction pure (testable sans base de données).
+ */
+export function mergeCourseContent(
+  existing: DetailedModule[],
+  incoming: DetailedModule[]
+): { merged: DetailedModule[]; addedModules: number; addedLessons: number; skippedLessons: number } {
+  const merged: DetailedModule[] = existing.map((m) => ({ ...m, lessons: [...m.lessons] }));
+  let addedModules = 0;
+  let addedLessons = 0;
+  let skippedLessons = 0;
+
+  const known = new Set<string>();
+  merged.forEach((m) => m.lessons.forEach((l) => known.add(toUuid(l.id))));
+
+  for (const inc of incoming) {
+    let target = merged.find((m) => toUuid(m.id) === toUuid(inc.id));
+    if (!target) {
+      target = { ...inc, lessons: [] };
+      merged.push(target);
+      addedModules++;
+    }
+    const have = new Set(target.lessons.map((l) => toUuid(l.id)));
+    for (const les of [...inc.lessons].sort((a, b) => a.position - b.position)) {
+      const key = toUuid(les.id);
+      if (have.has(key) || known.has(key)) {
+        skippedLessons++;
+        continue;
+      }
+      target.lessons.push({ ...les, moduleId: target.id });
+      have.add(key);
+      known.add(key);
+      addedLessons++;
+    }
+  }
+  merged.sort((a, b) => a.position - b.position);
+  merged.forEach((m) => (m.lessons = [...m.lessons].sort((a, b) => a.position - b.position)));
+  return { merged, addedModules, addedLessons, skippedLessons };
+}
+
+export function validateCourseFile(raw: any): CourseContentFile {
+  if (!raw || raw.format !== 'rythmebinaire-course-v1') {
+    throw new Error('Ce fichier n’est pas un fichier de cours RythmeBinaire (format inconnu).');
+  }
+  if (typeof raw.courseId !== 'string' || !raw.courseId) throw new Error('Le fichier ne précise pas le cours (courseId).');
+  if (!Array.isArray(raw.modules) || raw.modules.length === 0) throw new Error('Le fichier ne contient aucun module.');
+  for (const m of raw.modules) {
+    if (!m.id || !m.translations?.fr?.title || !Array.isArray(m.lessons)) throw new Error(`Module invalide : ${m.id || '(sans id)'}`);
+    for (const l of m.lessons) {
+      if (!l.id || !l.translations?.fr?.title || typeof l.translations.fr.content !== 'string')
+        throw new Error(`Leçon invalide : ${l.id || '(sans id)'}`);
+    }
+  }
+  return raw as CourseContentFile;
+}
+
+/** Ajoute le contenu d'un fichier de cours à un cours déjà présent dans la base. */
+export async function importCourseFile(raw: unknown): Promise<ImportReport> {
+  if (!isSupabaseConfigured()) throw new Error('Supabase n’est pas configuré.');
+  const file = validateCourseFile(raw);
+  const cId = toUuid(file.courseId);
+
+  const { data: course, error } = await supabase.from('courses').select('id').eq('id', cId).maybeSingle();
+  if (error) throw explain('Recherche du cours', error);
+  if (!course) {
+    throw new Error(
+      `Le cours « ${file.courseId} » n’existe pas encore dans la base. Importe d’abord les cours d’exemple (ou crée le cours), puis réessaie.`
+    );
+  }
+
+  const existing = (await loadModulesFromDb([file.courseId]))[cId] || [];
+  const incoming = file.modules.map((m) => ({ ...m, courseId: cId, lessons: m.lessons.map((l) => ({ ...l, courseId: cId })) }));
+  const res = mergeCourseContent(existing, incoming);
+
+  // Tests : uniquement pour les exercices des leçons réellement ajoutées
+  const existingLessonIds = new Set(existing.flatMap((m) => m.lessons.map((l) => toUuid(l.id))));
+  const tests: Record<string, ExerciseTest[]> = {};
+  for (const m of res.merged)
+    for (const l of m.lessons) {
+      if (!l.exercise || existingLessonIds.has(toUuid(l.id))) continue;
+      const t = file.tests?.[l.exercise.id];
+      if (t) tests[l.exercise.id] = t.map((x, i) => ({ id: `t-${i}`, exercise_id: l.exercise!.id, input: x.input, expected_output: x.expected_output, is_hidden: !!x.is_hidden }));
+    }
+
+  if (res.addedLessons > 0 || res.addedModules > 0) await saveModulesToDb(file.courseId, res.merged, tests);
+  return { courseId: file.courseId, addedModules: res.addedModules, addedLessons: res.addedLessons, skippedLessons: res.skippedLessons };
+}

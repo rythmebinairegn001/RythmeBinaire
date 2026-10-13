@@ -26,7 +26,7 @@ import {
   deleteCourseAdmin,
   isCourseMissingEn,
 } from '../../services/adminService';
-import { importSampleCourses } from '../../services/contentService';
+import { importSampleCourses, importCourseFile } from '../../services/contentService';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import { CourseModal } from './CourseModal';
 import { ModulesManager } from './ModulesManager';
@@ -60,6 +60,7 @@ export const AdminDashboard: React.FC<Props> = ({
   const [courses, setCourses] = useState<PublicCourseItem[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
@@ -155,6 +156,29 @@ export const AdminDashboard: React.FC<Props> = ({
       } catch (e: any) {
         setActionError(e?.message || 'La suppression a échoué.');
       }
+    }
+  };
+
+  // Ajoute le contenu de fichiers de cours (.json) sans écraser ce qui existe déjà
+  const handleImportFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setActionError(null);
+    setImportNotice(null);
+    setImporting(true);
+    const lines: string[] = [];
+    try {
+      for (const f of Array.from(files)) {
+        try {
+          const report = await importCourseFile(JSON.parse(await f.text()));
+          lines.push(`${f.name} : ${report.addedLessons} leçon(s) ajoutée(s), ${report.skippedLessons} déjà présente(s)`);
+        } catch (e: any) {
+          lines.push(`${f.name} : ÉCHEC — ${e?.message || 'fichier illisible'}`);
+        }
+      }
+      setImportNotice(lines.join('\n'));
+      await loadCourses();
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -307,6 +331,33 @@ export const AdminDashboard: React.FC<Props> = ({
               <span>{t.admin.newCourseBtn}</span>
             </button>
           </div>
+
+          {isSupabaseConfigured() && courses.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="cursor-pointer px-3 py-2 rounded-xl border border-purple-500/30 text-purple-600 dark:text-purple-400 text-xs font-bold hover:bg-purple-500/10">
+                {importing ? 'Import en cours…' : 'Importer des fichiers de cours (.json)'}
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  multiple
+                  className="hidden"
+                  disabled={importing}
+                  onChange={(e) => {
+                    handleImportFiles(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              <span className="text-[11px] text-[var(--color-text-muted)]">
+                Ajoute de nouvelles leçons sans toucher à celles qui existent déjà.
+              </span>
+            </div>
+          )}
+          {importNotice && (
+            <pre className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-700 dark:text-emerald-400 whitespace-pre-wrap font-sans">
+              {importNotice}
+            </pre>
+          )}
 
           {actionError && (
             <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-600 dark:text-red-400 font-semibold">
