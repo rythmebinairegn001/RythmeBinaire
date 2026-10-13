@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { ExerciseTest, ExerciseSubmission, AiHintRequest } from '../types/database';
 import { getTestsForExercise } from '../data/exerciseTestsData';
+import { runLocally } from './codeRunner';
 
 export interface ExecuteRequest {
   exercise_id: string;
@@ -219,7 +220,14 @@ export async function executeCode(
     }
   }
 
-  // Simulated code execution (Mock)
+  // Exécution réelle dans le navigateur (Python via Pyodide, JavaScript)
+  const local = await runLocally(req);
+  if (local) {
+    await recordSubmission(userId, req.exercise_id, req.code, local);
+    return local;
+  }
+
+  // Langages non gérés (ex : html) : simulation
   const result = await simulateMockExecution(req);
   await recordSubmission(userId, req.exercise_id, req.code, result);
   return result;

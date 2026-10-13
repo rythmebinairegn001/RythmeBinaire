@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { preloadRunner } from '../../services/codeRunner';
 import {
   ArrowLeft,
   Play,
@@ -98,6 +99,9 @@ export const StudentExercisePage: React.FC<Props> = ({
     if (!exercise) return;
 
     let isMounted = true;
+
+    // 0. Charge l'environnement d'exécution en arrière-plan pendant que l'élève lit la consigne
+    preloadRunner(exercise.language);
 
     // 1. Tests
     fetchExerciseTests(exercise.id).then((data) => {

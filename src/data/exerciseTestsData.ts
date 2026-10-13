@@ -47,15 +47,6 @@ export const EXERCISE_TESTS: Record<string, ExerciseTest[]> = {
 };
 
 export function getTestsForExercise(exerciseId: string): ExerciseTest[] {
-  return (
-    EXERCISE_TESTS[exerciseId] || [
-      {
-        id: `test-default-${exerciseId}`,
-        exercise_id: exerciseId,
-        input: null,
-        expected_output: 'Output attendu',
-        is_hidden: false,
-      },
-    ]
-  );
+  // Pas de test inventé : un exercice sans test enregistré est validé si le code s'exécute sans erreur.
+  return EXERCISE_TESTS[exerciseId] || [];
 }
