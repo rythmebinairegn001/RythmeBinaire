@@ -170,7 +170,7 @@ export const AdminDashboard: React.FC<Props> = ({
       for (const f of Array.from(files)) {
         try {
           const report = await importCourseFile(JSON.parse(await f.text()));
-          lines.push(`${f.name} : ${report.addedLessons} leçon(s) ajoutée(s), ${report.skippedLessons} déjà présente(s)`);
+          lines.push(`${f.name} : ${report.createdCourse ? 'nouveau cours créé (en brouillon, à publier quand tu veux) — ' : ''}${report.addedLessons} leçon(s) ajoutée(s), ${report.skippedLessons} déjà présente(s)`);
         } catch (e: any) {
           lines.push(`${f.name} : ÉCHEC — ${e?.message || 'fichier illisible'}`);
         }

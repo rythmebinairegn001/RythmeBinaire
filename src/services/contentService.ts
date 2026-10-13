@@ -451,6 +451,17 @@ export interface CourseContentFile {
   format: 'rythmebinaire-course-v1';
   /** Identifiant du cours (celui du cours d'exemple, ex : "course-python-02", ou un UUID) */
   courseId: string;
+  /** Si le cours n'existe pas encore, il est créé (en brouillon par défaut) avec ces informations. */
+  course?: {
+    track: 'coder' | 'culture_numerique';
+    level: string;
+    status?: 'draft' | 'published';
+    estimated_hours?: number;
+    translations: {
+      fr: { title: string; summary: string; description: string };
+      en: { title: string; summary: string; description: string };
+    };
+  };
   modules: DetailedModule[];
   /** Tests des exercices, indexés par identifiant d'exercice */
   tests?: Record<string, Array<{ input: string | null; expected_output: string; is_hidden: boolean }>>;
@@ -458,6 +469,7 @@ export interface CourseContentFile {
 
 export interface ImportReport {
   courseId: string;
+  createdCourse: boolean;
   addedModules: number;
   addedLessons: number;
   skippedLessons: number;
@@ -511,6 +523,7 @@ export function validateCourseFile(raw: any): CourseContentFile {
     throw new Error('Ce fichier n’est pas un fichier de cours RythmeBinaire (format inconnu).');
   }
   if (typeof raw.courseId !== 'string' || !raw.courseId) throw new Error('Le fichier ne précise pas le cours (courseId).');
+  if (raw.course && (!raw.course.track || !raw.course.translations?.fr?.title)) throw new Error('Les informations du cours (course) sont incomplètes.');
   if (!Array.isArray(raw.modules) || raw.modules.length === 0) throw new Error('Le fichier ne contient aucun module.');
   for (const m of raw.modules) {
     if (!m.id || !m.translations?.fr?.title || !Array.isArray(m.lessons)) throw new Error(`Module invalide : ${m.id || '(sans id)'}`);
@@ -530,10 +543,24 @@ export async function importCourseFile(raw: unknown): Promise<ImportReport> {
 
   const { data: course, error } = await supabase.from('courses').select('id').eq('id', cId).maybeSingle();
   if (error) throw explain('Recherche du cours', error);
+  let createdCourse = false;
   if (!course) {
-    throw new Error(
-      `Le cours « ${file.courseId} » n’existe pas encore dans la base. Importe d’abord les cours d’exemple (ou crée le cours), puis réessaie.`
-    );
+    if (!file.course) {
+      throw new Error(
+        `Le cours « ${file.courseId} » n’existe pas encore dans la base. Importe d’abord les cours d’exemple (ou crée le cours), puis réessaie.`
+      );
+    }
+    await saveCourseToDb({
+      id: file.courseId,
+      track: file.course.track,
+      level: file.course.level,
+      status: file.course.status || 'draft',
+      created_at: new Date().toISOString(),
+      estimated_hours: file.course.estimated_hours || 10,
+      translations: file.course.translations,
+      modules: [],
+    });
+    createdCourse = true;
   }
 
   const existing = (await loadModulesFromDb([file.courseId]))[cId] || [];
@@ -551,5 +578,5 @@ export async function importCourseFile(raw: unknown): Promise<ImportReport> {
     }
 
   if (res.addedLessons > 0 || res.addedModules > 0) await saveModulesToDb(file.courseId, res.merged, tests);
-  return { courseId: file.courseId, addedModules: res.addedModules, addedLessons: res.addedLessons, skippedLessons: res.skippedLessons };
+  return { courseId: file.courseId, createdCourse, addedModules: res.addedModules, addedLessons: res.addedLessons, skippedLessons: res.skippedLessons };
 }
