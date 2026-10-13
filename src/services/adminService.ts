@@ -3,6 +3,15 @@ import { PublicCourseItem, INITIAL_COURSES } from '../data/coursesData';
 import { DETAILED_COURSE_MODULES, DetailedModule, DetailedLesson } from '../data/lessonsData';
 import { EXERCISE_TESTS } from '../data/exerciseTestsData';
 import { ExerciseTest, UserProfile } from '../types/database';
+import {
+  fetchCoursesFromDb,
+  saveCourseToDb,
+  deleteCourseFromDb,
+  loadModulesFromDb,
+  saveModulesToDb,
+  loadTestsFromDb,
+  toUuid,
+} from './contentService';
 
 export interface AdminStudentProgress {
   courseId: string;
@@ -63,55 +72,10 @@ export function isLessonMissingEn(lesson: DetailedLesson): boolean {
  * Fetch all courses (both published and drafts) for admin
  */
 export async function getAllCoursesAdmin(): Promise<PublicCourseItem[]> {
-  // If Supabase is configured, try fetching from database
+  // Avec Supabase : la base est la source de vérité (même vide : l'admin peut importer les cours d'exemple).
   if (isSupabaseConfigured()) {
     try {
-      const { data: coursesData, error } = await supabase
-        .from('courses')
-        .select(`
-          id,
-          track,
-          level,
-          status,
-          created_at,
-          course_translations (
-            lang,
-            title,
-            summary,
-            description
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (!error && coursesData && coursesData.length > 0) {
-        return coursesData.map((c: any) => {
-          const transFr = c.course_translations?.find((t: any) => t.lang === 'fr');
-          const transEn = c.course_translations?.find((t: any) => t.lang === 'en');
-          const fallback = INITIAL_COURSES.find((ic) => ic.id === c.id);
-
-          return {
-            id: c.id,
-            track: c.track || 'coder',
-            level: c.level || 'debutant',
-            status: c.status || 'draft',
-            created_at: c.created_at || new Date().toISOString(),
-            estimated_hours: fallback?.estimated_hours || 10,
-            translations: {
-              fr: {
-                title: transFr?.title || fallback?.translations.fr.title || 'Sans titre',
-                summary: transFr?.summary || fallback?.translations.fr.summary || '',
-                description: transFr?.description || fallback?.translations.fr.description || '',
-              },
-              en: {
-                title: transEn?.title || fallback?.translations.en.title || '',
-                summary: transEn?.summary || fallback?.translations.en.summary || '',
-                description: transEn?.description || fallback?.translations.en.description || '',
-              },
-            },
-            modules: fallback?.modules || [],
-          };
-        });
-      }
+      return await fetchCoursesFromDb(false);
     } catch (err) {
       console.warn('Could not load courses from Supabase, using local fallback:', err);
     }
@@ -138,66 +102,20 @@ export async function getAllCoursesAdmin(): Promise<PublicCourseItem[]> {
  * Save or update a course (admin)
  */
 export async function saveCourseAdmin(course: PublicCourseItem): Promise<void> {
-  // 1. Save in local storage
-  const currentCourses = await getAllCoursesAdmin();
-  const index = currentCourses.findIndex((c) => c.id === course.id);
-  let updatedList: PublicCourseItem[];
-
-  if (index >= 0) {
-    updatedList = [...currentCourses];
-    updatedList[index] = course;
-  } else {
-    updatedList = [course, ...currentCourses];
+  // Avec Supabase : enregistrement réel dans la base (lève une erreur visible en cas d'échec)
+  if (isSupabaseConfigured()) {
+    await saveCourseToDb(course);
+    return;
   }
 
+  // Sans Supabase (développement local) : stockage navigateur uniquement
+  const currentCourses = await getAllCoursesAdmin();
+  const index = currentCourses.findIndex((c) => c.id === course.id);
+  const updatedList = index >= 0 ? currentCourses.map((c, i) => (i === index ? course : c)) : [course, ...currentCourses];
   try {
     localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(updatedList));
   } catch (err) {
     console.warn('Storage save error:', err);
-  }
-
-  // 2. If Supabase is available, sync to DB
-  if (isSupabaseConfigured()) {
-    try {
-      // Upsert course record
-      await supabase.from('courses').upsert({
-        id: course.id,
-        track: course.track,
-        level: course.level,
-        status: course.status,
-        created_at: course.created_at,
-      });
-
-      // Upsert FR translation
-      if (course.translations.fr.title) {
-        await supabase.from('course_translations').upsert(
-          {
-            course_id: course.id,
-            lang: 'fr',
-            title: course.translations.fr.title,
-            summary: course.translations.fr.summary,
-            description: course.translations.fr.description,
-          },
-          { onConflict: 'course_id,lang' }
-        );
-      }
-
-      // Upsert EN translation if provided
-      if (course.translations.en?.title?.trim()) {
-        await supabase.from('course_translations').upsert(
-          {
-            course_id: course.id,
-            lang: 'en',
-            title: course.translations.en.title,
-            summary: course.translations.en.summary,
-            description: course.translations.en.description,
-          },
-          { onConflict: 'course_id,lang' }
-        );
-      }
-    } catch (dbErr) {
-      console.warn('Supabase course sync warning:', dbErr);
-    }
   }
 }
 
@@ -205,25 +123,67 @@ export async function saveCourseAdmin(course: PublicCourseItem): Promise<void> {
  * Delete a course (admin)
  */
 export async function deleteCourseAdmin(courseId: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await deleteCourseFromDb(courseId);
+    try {
+      localStorage.removeItem(`${STORAGE_KEY_MODULES_PREFIX}${courseId}`);
+    } catch {}
+    return;
+  }
   const current = await getAllCoursesAdmin();
   const filtered = current.filter((c) => c.id !== courseId);
   try {
     localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(filtered));
   } catch {}
+}
 
-  if (isSupabaseConfigured()) {
-    try {
-      await supabase.from('courses').delete().eq('id', courseId);
-    } catch (e) {
-      console.warn('Supabase course delete error:', e);
-    }
-  }
+function buildDefaultModule(courseId: string): DetailedModule {
+  return {
+    id: `mod-${courseId}-1`,
+    courseId,
+    position: 1,
+    translations: {
+      fr: { title: 'Module 1 : Fondamentaux' },
+      en: { title: 'Module 1: Fundamentals' },
+    },
+    lessons: [
+      {
+        id: `les-${courseId}-101`,
+        moduleId: `mod-${courseId}-1`,
+        courseId,
+        position: 1,
+        translations: {
+          fr: {
+            title: 'Introduction et objectifs',
+            content: '### Bienvenue dans ce cours !\n\nVoici la première leçon d’introduction...',
+          },
+          en: {
+            title: 'Introduction and Goals',
+            content: '### Welcome to this course!\n\nHere is your first introduction lesson...',
+          },
+        },
+      },
+    ],
+  };
 }
 
 /**
  * Get modules and lessons for a specific course (admin)
  */
 export async function getCourseModulesAdmin(courseId: string): Promise<DetailedModule[]> {
+  // Avec Supabase : on lit la base (le contenu enregistré là est le vrai contenu)
+  if (isSupabaseConfigured()) {
+    try {
+      const byCourse = await loadModulesFromDb([courseId]);
+      const fromDb = byCourse[toUuid(courseId)] || [];
+      if (fromDb.length > 0) return fromDb;
+      // Cours encore vide dans la base : on propose un module de départ (non enregistré tant que l'admin ne sauvegarde pas)
+      return [buildDefaultModule(courseId)];
+    } catch (err) {
+      console.warn('Could not load modules from Supabase, using local fallback:', err);
+    }
+  }
+
   // Check local storage first
   try {
     const raw = localStorage.getItem(`${STORAGE_KEY_MODULES_PREFIX}${courseId}`);
@@ -241,37 +201,7 @@ export async function getCourseModulesAdmin(courseId: string): Promise<DetailedM
     return staticModules;
   }
 
-  // Create empty initial module if course is new
-  const defaultModule: DetailedModule[] = [
-    {
-      id: `mod-${courseId}-1`,
-      courseId,
-      position: 1,
-      translations: {
-        fr: { title: 'Module 1 : Fondamentaux' },
-        en: { title: 'Module 1: Fundamentals' },
-      },
-      lessons: [
-        {
-          id: `les-${courseId}-101`,
-          moduleId: `mod-${courseId}-1`,
-          courseId,
-          position: 1,
-          translations: {
-            fr: {
-              title: 'Introduction et objectifs',
-              content: '### Bienvenue dans ce cours !\n\nVoici la première leçon d’introduction...',
-            },
-            en: {
-              title: 'Introduction and Goals',
-              content: '### Welcome to this course!\n\nHere is your first introduction lesson...',
-            },
-          },
-        },
-      ],
-    },
-  ];
-
+  const defaultModule: DetailedModule[] = [buildDefaultModule(courseId)];
   try {
     localStorage.setItem(`${STORAGE_KEY_MODULES_PREFIX}${courseId}`, JSON.stringify(defaultModule));
   } catch {}
@@ -296,16 +226,29 @@ export async function saveCourseModulesAdmin(
     })),
   }));
 
+  // Avec Supabase : enregistrement réel (modules, leçons, exercices, tests).
+  if (isSupabaseConfigured()) {
+    const testsByExercise: Record<string, ExerciseTest[] | undefined> = {};
+    for (const m of orderedModules) {
+      for (const l of m.lessons) {
+        if (!l.exercise) continue;
+        try {
+          const raw = localStorage.getItem(`${STORAGE_KEY_TESTS_PREFIX}${l.exercise.id}`);
+          if (raw) testsByExercise[l.exercise.id] = JSON.parse(raw);
+        } catch {}
+      }
+    }
+    await saveModulesToDb(courseId, orderedModules, testsByExercise);
+    return;
+  }
+
+  // Sans Supabase (développement local) : stockage navigateur
   try {
-    localStorage.setItem(
-      `${STORAGE_KEY_MODULES_PREFIX}${courseId}`,
-      JSON.stringify(orderedModules)
-    );
+    localStorage.setItem(`${STORAGE_KEY_MODULES_PREFIX}${courseId}`, JSON.stringify(orderedModules));
   } catch (e) {
     console.warn('Storage modules save error:', e);
   }
 
-  // Also update lessonCount in courses list
   try {
     const courses = await getAllCoursesAdmin();
     const targetCourse = courses.find((c) => c.id === courseId);
@@ -328,6 +271,14 @@ export async function saveCourseModulesAdmin(
  * Get tests for an exercise (admin)
  */
 export async function getExerciseTestsAdmin(exerciseId: string): Promise<ExerciseTest[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const fromDb = await loadTestsFromDb(exerciseId);
+      if (fromDb.length > 0) return fromDb;
+    } catch (err) {
+      console.warn('Could not load tests from Supabase:', err);
+    }
+  }
   try {
     const raw = localStorage.getItem(`${STORAGE_KEY_TESTS_PREFIX}${exerciseId}`);
     if (raw) {
@@ -365,22 +316,8 @@ export async function saveExerciseTestsAdmin(
     console.warn('Storage save tests error:', e);
   }
 
-  if (isSupabaseConfigured()) {
-    try {
-      // Upsert each test
-      for (const t of tests) {
-        await supabase.from('exercise_tests').upsert({
-          id: t.id,
-          exercise_id: exerciseId,
-          input: t.input,
-          expected_output: t.expected_output,
-          is_hidden: t.is_hidden,
-        });
-      }
-    } catch (err) {
-      console.warn('Supabase test sync warning:', err);
-    }
-  }
+  // Les tests sont envoyés à la base avec le reste du cours (voir saveModulesToDb),
+  // car un test ne peut exister que si son exercice existe déjà.
 }
 
 /**

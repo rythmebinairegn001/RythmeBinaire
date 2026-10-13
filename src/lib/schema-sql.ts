@@ -503,6 +503,11 @@ CREATE POLICY "Eleve records own lesson progress"
 
 GRANT SELECT, INSERT ON public.lesson_progress TO authenticated;
 
+-- ------------------------------------------------------------------------------
+-- 17. DURÉE ESTIMÉE DES COURS (heures) — enregistrée avec le cours
+-- ------------------------------------------------------------------------------
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS estimated_hours INTEGER NOT NULL DEFAULT 10;
+
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users

@@ -117,7 +117,7 @@ export default function App() {
     if (sessionUser && sessionUser.role === 'eleve') {
       refreshEnrollmentsProgress(sessionUser.id);
     }
-  }, [sessionUser]);
+  }, [sessionUser, courses]);
 
   // Fetch courses from Supabase or fallback
   useEffect(() => {

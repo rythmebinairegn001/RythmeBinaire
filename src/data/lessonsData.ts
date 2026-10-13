@@ -658,6 +658,29 @@ Les modèles d'IA comme Gemini ou GPT ont été entraînés sur d'immenses corpu
   ],
 };
 
+// Les cours d'exemple (coursesData) et leur contenu (ci-dessus) n'ont pas tous le même identifiant.
+// Ces alias font le lien pour que chaque cours d'exemple affiche bien son contenu.
+const STATIC_CONTENT_ALIASES: Record<string, string> = {
+  'course-office-05': 'course-bureau-04',
+  'course-security-06': 'course-securite-05',
+  'course-ai-07': 'course-ia-06',
+};
+for (const [courseId, contentKey] of Object.entries(STATIC_CONTENT_ALIASES)) {
+  if (!DETAILED_COURSE_MODULES[courseId] && DETAILED_COURSE_MODULES[contentKey]) {
+    DETAILED_COURSE_MODULES[courseId] = DETAILED_COURSE_MODULES[contentKey];
+  }
+}
+
+/** Contenu d'exemple écrit dans le code pour un cours (liste vide s'il n'y en a pas). */
+export function getStaticModulesForCourse(courseId: string): DetailedModule[] {
+  return DETAILED_COURSE_MODULES[courseId] || [];
+}
+
+/** Met à disposition des pages élève le contenu lu dans la base pour un cours. */
+export function registerCourseModules(courseId: string, modules: DetailedModule[]): void {
+  DETAILED_COURSE_MODULES[courseId] = modules;
+}
+
 // Helper: retrieve all lessons of a course in sequential order
 export function getCourseLessonsList(courseId: string): DetailedLesson[] {
   const modules = DETAILED_COURSE_MODULES[courseId] || [];

@@ -26,6 +26,8 @@ import {
   deleteCourseAdmin,
   isCourseMissingEn,
 } from '../../services/adminService';
+import { importSampleCourses } from '../../services/contentService';
+import { isSupabaseConfigured } from '../../lib/supabase';
 import { CourseModal } from './CourseModal';
 import { ModulesManager } from './ModulesManager';
 import { StudentsList } from './StudentsList';
@@ -56,6 +58,8 @@ export const AdminDashboard: React.FC<Props> = ({
 
   // Courses state
   const [courses, setCourses] = useState<PublicCourseItem[]>([]);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
@@ -144,8 +148,27 @@ export const AdminDashboard: React.FC<Props> = ({
 
   const handleDeleteCourse = async (courseId: string) => {
     if (window.confirm('Voulez-vous vraiment supprimer ce cours ? Cette action est irréversible.')) {
-      await deleteCourseAdmin(courseId);
+      setActionError(null);
+      try {
+        await deleteCourseAdmin(courseId);
+        await loadCourses();
+      } catch (e: any) {
+        setActionError(e?.message || 'La suppression a échoué.');
+      }
+    }
+  };
+
+  // Copie les cours d'exemple du code vers la base (en brouillon, à publier ensuite)
+  const handleImportSamples = async () => {
+    setActionError(null);
+    setImporting(true);
+    try {
+      await importSampleCourses();
       await loadCourses();
+    } catch (e: any) {
+      setActionError(e?.message || "L'import a échoué.");
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -285,6 +308,12 @@ export const AdminDashboard: React.FC<Props> = ({
             </button>
           </div>
 
+          {actionError && (
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-600 dark:text-red-400 font-semibold">
+              ⚠ {actionError}
+            </div>
+          )}
+
           {/* Courses Table / Cards */}
           {loading ? (
             <div className="p-12 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
@@ -300,6 +329,16 @@ export const AdminDashboard: React.FC<Props> = ({
               <p className="text-xs text-[var(--color-text-muted)]">
                 Modifiez vos filtres ou créez un nouveau cours pour enrichir le catalogue.
               </p>
+              {courses.length === 0 && isSupabaseConfigured() && (
+                <button
+                  type="button"
+                  onClick={handleImportSamples}
+                  disabled={importing}
+                  className="mt-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-xs font-bold"
+                >
+                  {importing ? 'Import en cours…' : "Importer les cours d'exemple (en brouillon)"}
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">

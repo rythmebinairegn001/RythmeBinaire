@@ -44,6 +44,7 @@ export const ModulesManager: React.FC<Props> = ({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Module modal edit state
   const [editingModule, setEditingModule] = useState<{
@@ -83,16 +84,22 @@ export const ModulesManager: React.FC<Props> = ({
     }
   };
 
-  const handleSaveModules = async (updated: DetailedModule[]) => {
+  // Renvoie null si tout est enregistré, sinon le message d'erreur (affiché à l'admin)
+  const handleSaveModules = async (updated: DetailedModule[]): Promise<string | null> => {
     setSaving(true);
+    setSaveError(null);
     try {
       await saveCourseModulesAdmin(course.id, updated);
       setModules(updated);
       setNotice('Modifications enregistrées');
       setTimeout(() => setNotice(null), 3000);
       if (onCourseUpdated) onCourseUpdated();
-    } catch (e) {
+      return null;
+    } catch (e: any) {
       console.error(e);
+      const msg = e?.message || "L'enregistrement a échoué.";
+      setSaveError(msg);
+      return msg;
     } finally {
       setSaving(false);
     }
@@ -270,7 +277,8 @@ export const ModulesManager: React.FC<Props> = ({
       };
     });
 
-    await handleSaveModules(updated);
+    const err = await handleSaveModules(updated);
+    if (err) throw new Error(err);
     setExerciseModalLesson(null);
   };
 
@@ -304,6 +312,11 @@ export const ModulesManager: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          {saveError && (
+            <span className="text-xs text-red-600 dark:text-red-400 font-semibold max-w-xs">
+              ⚠ {saveError}
+            </span>
+          )}
           {notice && (
             <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold animate-pulse">
               ✓ {notice}
