@@ -202,6 +202,7 @@ export const StudentExercisePage: React.FC<Props> = ({
         code: code,
         current_hint_level: currentLevel,
         language: exercise.language,
+        last_output: executionResult?.output,
       });
 
       // Update hints list
@@ -250,9 +251,11 @@ export const StudentExercisePage: React.FC<Props> = ({
   }
 
   // Determine if Hint button is visible: ONLY if result is fail or error
+  // (4 niveaux d'indices au maximum par exercice : le serveur applique la même règle)
   const canRequestHint =
     executionResult !== null &&
-    (executionResult.status === 'fail' || executionResult.status === 'error');
+    (executionResult.status === 'fail' || executionResult.status === 'error') &&
+    hints.length < 4;
 
   return (
     <div

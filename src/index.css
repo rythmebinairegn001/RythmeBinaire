@@ -379,3 +379,11 @@ html.dark .markdown-content th {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
+
+/* Impression du certificat : on n'imprime que la carte .cert-print */
+@media print {
+  body * { visibility: hidden !important; }
+  .cert-print, .cert-print * { visibility: visible !important; }
+  .cert-print { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; border-width: 6px !important; }
+  .no-print { display: none !important; }
+}

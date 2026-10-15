@@ -3,6 +3,7 @@ import { Mail, Lock, LogIn, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { PreferredLanguage } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
+import { loginIdentifierToEmail } from '../../services/familyService';
 
 interface Props {
   lang: PreferredLanguage;
@@ -22,8 +23,13 @@ function friendlyAuthError(raw: string, lang: PreferredLanguage): string {
   }
   if (/invalid login credentials/i.test(raw)) {
     return lang === 'fr'
-      ? "E-mail ou mot de passe incorrect. Vérifiez vos informations, ou créez un compte si vous n'en avez pas encore."
-      : "Incorrect email or password. Check your details, or create an account if you don't have one yet.";
+      ? "E-mail (ou identifiant) ou mot de passe incorrect. Vérifiez vos informations, ou créez un compte si vous n'en avez pas encore."
+      : "Incorrect email (or username) or password. Check your details, or create an account if you don't have one yet.";
+  }
+  if (/banned/i.test(raw)) {
+    return lang === 'fr'
+      ? "Ce compte est suspendu. Pour un compte enfant, demandez à l'adulte responsable de le réactiver ; sinon, contactez RythmeBinaireGn."
+      : 'This account is suspended. For a child account, ask the adult in charge to reactivate it; otherwise contact RythmeBinaireGn.';
   }
   return raw;
 }
@@ -68,7 +74,7 @@ export const LoginForm: React.FC<Props> = ({ lang, onNavigate, onLoginSuccess, o
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: loginIdentifierToEmail(email),
         password: password,
       });
 
@@ -141,13 +147,15 @@ export const LoginForm: React.FC<Props> = ({ lang, onNavigate, onLoginSuccess, o
               htmlFor="login-email-input"
               className="block text-xs font-semibold text-zinc-700 mb-1.5"
             >
-              {t.auth.emailLabel}
+              {lang === 'fr' ? 'E-mail ou identifiant' : 'Email or username'}
             </label>
             <div className="relative">
               <input
                 id="login-email-input"
-                type="email"
-                autoComplete="email"
+                type="text"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

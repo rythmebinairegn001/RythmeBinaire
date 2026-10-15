@@ -2,6 +2,8 @@ import { isSupabaseConfigured } from '../lib/supabase';
 import { PreferredLanguage } from '../types/database';
 import { INITIAL_COURSES, PublicCourseItem } from '../data/coursesData';
 import { fetchCoursesFromDb, loadAndRegisterContent } from './contentService';
+import { registerCourseModules } from '../data/lessonsData';
+import { saveCatalog, loadCatalog } from '../lib/offlineStore';
 
 // Cours d'exemple, utilisés uniquement tant que la base ne contient aucun cours publié
 // (ou si Supabase n'est pas configuré / injoignable).
@@ -34,13 +36,21 @@ export async function fetchPublishedCourses(_lang: PreferredLanguage): Promise<P
     }
     // Charge le contenu (texte) des cours pour que les pages élève le lisent depuis la base
     try {
-      await loadAndRegisterContent(courses.map((c) => c.id));
+      const modules = await loadAndRegisterContent(courses.map((c) => c.id));
+      // Copie locale pour la lecture hors connexion (rien n'est retéléchargé de plus)
+      void saveCatalog(courses, modules);
     } catch (err) {
       console.warn('Could not load course content from Supabase:', err);
     }
     return courses;
   } catch (err) {
     console.warn('Could not query Supabase courses, using fallback catalog:', err);
+    // Pas de connexion : on reprend la dernière copie locale si elle existe
+    const snap = await loadCatalog();
+    if (snap) {
+      for (const id of Object.keys(snap.modules)) registerCourseModules(id, snap.modules[id]);
+      return snap.courses;
+    }
     return getSampleCourses();
   }
 }

@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { ExerciseTest, ExerciseSubmission, AiHintRequest } from '../types/database';
 import { getTestsForExercise } from '../data/exerciseTestsData';
 import { runLocally } from './codeRunner';
+import { saveTests, loadTests } from '../lib/offlineStore';
 
 export interface ExecuteRequest {
   exercise_id: string;
@@ -30,6 +31,8 @@ export interface HintRequest {
   code: string;
   current_hint_level: number;
   language: string;
+  /** Dernière sortie de la console (aide le tuteur à repérer l'erreur). */
+  last_output?: string;
 }
 
 export interface HintResponse {
@@ -97,12 +100,13 @@ export async function fetchExerciseTests(exerciseId: string): Promise<ExerciseTe
       .eq('exercise_id', exerciseId);
 
     if (error || !data || data.length === 0) {
-      return fallbackTests;
+      return (await loadTests(exerciseId)) ?? fallbackTests;
     }
 
+    void saveTests(exerciseId, data as ExerciseTest[]);
     return data as ExerciseTest[];
   } catch {
-    return fallbackTests;
+    return (await loadTests(exerciseId)) ?? fallbackTests;
   }
 }
 
@@ -426,31 +430,40 @@ export async function requestAiHint(req: HintRequest): Promise<HintResponse> {
 
   const tutorUrl = (import.meta.env?.VITE_TUTOR_API_URL as string | undefined)?.trim();
 
-  // The tutor service owns its provider/API secret and validates this user JWT.
+  // Tuteur réel : une Supabase Edge Function (supabase/functions/tutor-hint). Elle garde la clé IA
+  // secrète, décide elle-même du niveau d'indice, applique les limites ET enregistre l'indice.
+  // Ici on n'enregistre donc rien, et on ne retombe JAMAIS sur le faux tuteur en cas d'erreur :
+  // un élève ne doit pas prendre un « [MOCK] » pour une vraie réponse.
   if (tutorUrl && isSupabaseConfigured()) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('Reconnecte-toi pour demander un indice.');
+    let resp: Response;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('No authenticated session');
-      const resp = await fetch(tutorUrl, {
+      resp = await fetch(tutorUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify(req),
+        body: JSON.stringify({
+          exercise_id: req.exercise_id,
+          code: req.code,
+          last_output: req.last_output,
+        }),
       });
-
-      if (resp.ok) {
-        const data = (await resp.json()) as HintResponse;
-        await recordHintRequest(req.user_id, req.exercise_id, req.code, data);
-        return data;
-      }
     } catch {
-      // Fall back to mock
+      throw new Error('Impossible de joindre le tuteur. Vérifie ta connexion et réessaie.');
     }
+    const payload = (await resp.json().catch(() => null)) as
+      | (Partial<HintResponse> & { error?: string })
+      | null;
+    if (!resp.ok || !payload || typeof payload.hint_text !== 'string') {
+      throw new Error(payload?.error || 'Le tuteur est momentanément indisponible.');
+    }
+    return payload as HintResponse;
   }
 
-  // 3. Mock Tutor Response
+  // Mode développement (pas de tuteur configuré) : faux indices clairement marqués [MOCK].
   const mockResponse = generateMockHint(req);
   await recordHintRequest(req.user_id, req.exercise_id, req.code, mockResponse);
   return mockResponse;

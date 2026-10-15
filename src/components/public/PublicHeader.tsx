@@ -94,6 +94,18 @@ export const PublicHeader: React.FC<Props> = ({
               {t.nav.catalog}
             </button>
             <button
+              id="nav-link-pricing"
+              type="button"
+              onClick={() => onNavigate('pricing')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold tracking-wide transition ${
+                currentView === 'pricing'
+                  ? 'bg-white/10 text-white font-bold'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              {currentLang === 'fr' ? 'Tarifs' : 'Pricing'}
+            </button>
+            <button
               id="nav-link-student-space"
               type="button"
               onClick={() => onNavigate('student-dashboard')}

@@ -19,6 +19,7 @@ export const RegisterForm: React.FC<Props> = ({ lang, onNavigate, onRegisterSucc
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [fullName, setFullName] = useState('');
   const [preferredLang, setPreferredLang] = useState<PreferredLanguage>('fr'); // Default 'fr' as requested
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -165,6 +166,15 @@ export const RegisterForm: React.FC<Props> = ({ lang, onNavigate, onRegisterSucc
       return;
     }
 
+    if (!adultConfirmed) {
+      setErrorMsg(
+        fr
+          ? "Cochez la case : il faut avoir 12 ans ou plus pour créer un compte ici. Pour un enfant de moins de 12 ans, un adulte crée d'abord son propre compte, puis ajoute l'enfant depuis « Famille »."
+          : 'Please tick the box: you must be 12 or older to create an account here. For a child under 12, an adult creates their own account first, then adds the child from "Family".'
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -189,6 +199,8 @@ export const RegisterForm: React.FC<Props> = ({ lang, onNavigate, onRegisterSucc
             full_name: fullName.trim(),
             preferred_language: preferredLang,
             role: 'eleve', // strictly eleve
+            // Déclaration « 12 ans ou plus » (exigée par la base si supabase/age12.sql est actif)
+            age_confirmed_12: true,
           },
         },
       });
@@ -483,6 +495,21 @@ export const RegisterForm: React.FC<Props> = ({ lang, onNavigate, onRegisterSucc
               <Lock className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3 pointer-events-none" />
             </div>
           </div>
+
+          <label className="flex items-start gap-2.5 text-xs text-zinc-600 leading-relaxed cursor-pointer">
+            <input
+              id="chk-adult-confirm"
+              type="checkbox"
+              checked={adultConfirmed}
+              onChange={(e) => setAdultConfirmed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <span>
+              {fr
+                ? "Je confirme avoir 12 ans ou plus. Pour un enfant de moins de 12 ans, un adulte crée son propre compte puis ajoute l'enfant depuis « Famille »."
+                : 'I confirm I am 12 or older. For a child under 12, an adult creates their own account, then adds the child from "Family".'}
+            </span>
+          </label>
 
           <div className="pt-2">
             <button

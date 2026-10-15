@@ -13,7 +13,7 @@ import { getTestsForExercise } from '../data/exerciseTestsData';
 import type { ExecuteRequest, ExecuteResponse, FailedTestDetail } from './exerciseService';
 
 const PYODIDE_VERSION = '0.26.4';
-const PYODIDE_BASE = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+export const PYODIDE_BASE = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 const EXEC_TIMEOUT_MS = 10_000;
 const LOAD_TIMEOUT_MS = 120_000;
 

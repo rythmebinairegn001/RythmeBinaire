@@ -240,7 +240,8 @@ export async function loadModulesFromDb(courseIds: string[]): Promise<Record<str
           courseId: m.course_id,
           position: l.position,
           translations: {
-            fr: { title: lFr?.title || 'Leçon', content: lFr?.content || '' },
+            // Leçon verrouillée côté base (voir supabase/acces-serveur.sql) : aucune traduction reçue
+            fr: { title: lFr?.title || (lEn ? 'Leçon' : `Leçon ${l.position}`), content: lFr?.content || '' },
             ...(lEn ? { en: { title: lEn.title, content: lEn.content } } : {}),
           },
         };
@@ -274,9 +275,10 @@ export async function loadModulesFromDb(courseIds: string[]): Promise<Record<str
 }
 
 /** Charge le contenu des cours publiés et le met à disposition des pages élève. */
-export async function loadAndRegisterContent(courseIds: string[]): Promise<void> {
+export async function loadAndRegisterContent(courseIds: string[]): Promise<Record<string, DetailedModule[]>> {
   const byCourse = await loadModulesFromDb(courseIds);
   for (const id of Object.keys(byCourse)) registerCourseModules(id, byCourse[id]);
+  return byCourse;
 }
 
 /**

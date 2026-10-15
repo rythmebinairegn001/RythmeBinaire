@@ -15,6 +15,14 @@ import {
   getStudentsListAdmin,
   AdminStudentItem,
 } from '../../services/adminService';
+import {
+  AccessGrant,
+  AccessSettings,
+  DEFAULT_ACCESS_SETTINGS,
+  listGrantsAdmin,
+  loadAccessSettings,
+} from '../../services/accessService';
+import { AccessSettingsPanel, StudentAccessControl } from './AccessControls';
 
 interface Props {
   lang: PreferredLanguage;
@@ -25,6 +33,9 @@ export const StudentsList: React.FC<Props> = ({ lang }) => {
   const [students, setStudents] = useState<AdminStudentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [grants, setGrants] = useState<Record<string, AccessGrant>>({});
+  const [accessSettings, setAccessSettings] = useState<AccessSettings>(DEFAULT_ACCESS_SETTINGS);
+  const [accessReady, setAccessReady] = useState(false);
 
   useEffect(() => {
     loadStudents();
@@ -33,8 +44,15 @@ export const StudentsList: React.FC<Props> = ({ lang }) => {
   const loadStudents = async () => {
     setLoading(true);
     try {
-      const data = await getStudentsListAdmin();
+      const [data, access, g] = await Promise.all([
+        getStudentsListAdmin(),
+        loadAccessSettings(),
+        listGrantsAdmin(),
+      ]);
       setStudents(data);
+      setAccessSettings(access.settings);
+      setAccessReady(access.ok);
+      setGrants(g);
     } finally {
       setLoading(false);
     }
@@ -66,9 +84,18 @@ export const StudentsList: React.FC<Props> = ({ lang }) => {
         {/* Read-Only MVP Notice badge */}
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-xs font-semibold">
           <Info className="w-3.5 h-3.5 shrink-0" />
-          <span>Lecture seule • Rôle élève</span>
+          <span>{lang === 'fr' ? 'Gestion des accès • Rôle élève' : 'Access management • Student role'}</span>
         </div>
       </div>
+
+      {/* Accès payant / accès offert */}
+      <AccessSettingsPanel
+        key={String(accessReady)}
+        settings={accessSettings}
+        tablesReady={accessReady}
+        onSaved={setAccessSettings}
+        lang={lang}
+      />
 
       {/* Search Bar */}
       <div className="relative max-w-md">
@@ -147,6 +174,21 @@ export const StudentsList: React.FC<Props> = ({ lang }) => {
                     </span>
                   </div>
                 </div>
+
+                <StudentAccessControl
+                  userId={student.id}
+                  grant={grants[student.id] || null}
+                  tablesReady={accessReady}
+                  lang={lang}
+                  onChanged={(g) =>
+                    setGrants((prev) => {
+                      const next = { ...prev };
+                      if (g) next[student.id] = g;
+                      else delete next[student.id];
+                      return next;
+                    })
+                  }
+                />
 
                 {/* Course Enrollments & Progress */}
                 <div className="space-y-2.5">

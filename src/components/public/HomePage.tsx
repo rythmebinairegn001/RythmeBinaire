@@ -440,6 +440,13 @@ export const HomePage: React.FC<Props> = ({
             </button>
             <button
               type="button"
+              onClick={() => onNavigate('pricing')}
+              className="hover:text-slate-900 transition"
+            >
+              {lang === 'fr' ? 'Tarifs' : 'Pricing'}
+            </button>
+            <button
+              type="button"
               onClick={() => onNavigate('register')}
               className="hover:text-slate-900 transition font-semibold text-slate-800"
             >
@@ -447,8 +454,19 @@ export const HomePage: React.FC<Props> = ({
             </button>
           </div>
         </div>
-        <p className="mt-4 text-[11px] text-slate-400 text-center sm:text-left">
-          Conçu pour l’Afrique de l’Ouest et tous les apprenants francophones et anglophones. Accès gratuit pendant la phase pilote.
+        <p className="mt-4 text-[11px] text-slate-500 flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1">
+          <button type="button" onClick={() => onNavigate('terms')} className="hover:text-slate-900 underline-offset-2 hover:underline">
+            {lang === 'fr' ? "Conditions d'utilisation" : 'Terms of use'}
+          </button>
+          <button type="button" onClick={() => onNavigate('privacy')} className="hover:text-slate-900 underline-offset-2 hover:underline">
+            {lang === 'fr' ? 'Confidentialité' : 'Privacy'}
+          </button>
+          <button type="button" onClick={() => onNavigate('verify')} className="hover:text-slate-900 underline-offset-2 hover:underline">
+            {lang === 'fr' ? 'Vérifier un certificat' : 'Verify a certificate'}
+          </button>
+        </p>
+        <p className="mt-2 text-[11px] text-slate-400 text-center sm:text-left">
+          Conçu pour l’Afrique de l’Ouest et tous les apprenants francophones et anglophones.
         </p>
       </footer>
     </div>

@@ -17,6 +17,12 @@ import { getTranslation } from '../../lib/i18n';
 import { PublicCourseItem } from '../../data/coursesData';
 import { StudentCourseProgress } from '../../services/studentService';
 import { DetailedLesson } from '../../data/lessonsData';
+import { ProgressionPanel } from './ProgressionPanel';
+import { ClassPanel } from './ClassPanel';
+import { CertificatePanel } from './CertificatePanel';
+import { TutoringPanel } from './TutoringPanel';
+import { NotificationsPanel } from './NotificationsPanel';
+import { OfflinePanel } from './OfflinePanel';
 
 interface Props {
   user: UserProfile;
@@ -26,6 +32,13 @@ interface Props {
   onContinueCourse: (courseId: string, targetLessonId?: string) => void;
   onOpenCourse: (courseId: string) => void;
   onBrowseCatalog: () => void;
+  /** Ouvre l'espace Famille. Absent pour un compte enfant (il n'a pas de Famille). */
+  onOpenFamily?: () => void;
+  onOpenCommunity?: () => void;
+  /** Ouvre l'espace professeur. Présent seulement pour un compte professeur. */
+  onOpenTeacher?: () => void;
+  /** Compte enfant supervisé : pas de panneau « Ma classe ». */
+  isChildAccount?: boolean;
 }
 
 export const StudentDashboard: React.FC<Props> = ({
@@ -36,6 +49,10 @@ export const StudentDashboard: React.FC<Props> = ({
   onContinueCourse,
   onOpenCourse,
   onBrowseCatalog,
+  onOpenFamily,
+  onOpenCommunity,
+  onOpenTeacher,
+  isChildAccount,
 }) => {
   const t = getTranslation(lang);
 
@@ -83,6 +100,39 @@ export const StudentDashboard: React.FC<Props> = ({
             </p>
           </div>
 
+          {onOpenFamily && (
+            <button
+              id="btn-open-family"
+              type="button"
+              onClick={onOpenFamily}
+              className="self-start inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-semibold transition border border-emerald-200"
+            >
+              <span>{lang === 'fr' ? 'Famille : comptes enfants' : 'Family: child accounts'}</span>
+            </button>
+          )}
+
+          {onOpenCommunity && (
+            <button
+              id="btn-open-community"
+              type="button"
+              onClick={onOpenCommunity}
+              className="self-start inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-sky-50 hover:bg-sky-100 text-sky-900 text-xs font-semibold transition border border-sky-200"
+            >
+              <span>{lang === 'fr' ? 'Entraide' : 'Community help'}</span>
+            </button>
+          )}
+
+          {onOpenTeacher && (
+            <button
+              id="btn-open-teacher"
+              type="button"
+              onClick={onOpenTeacher}
+              className="self-start inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition"
+            >
+              <span>{lang === 'fr' ? 'Espace professeur' : 'Teacher space'}</span>
+            </button>
+          )}
+
           {/* Quick Metrics */}
           <div className="flex items-center gap-3 sm:gap-4 shrink-0">
             <div className="px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-center min-w-[100px]">
@@ -115,6 +165,32 @@ export const StudentDashboard: React.FC<Props> = ({
           </div>
         </div>
       </div>
+
+      {/* 1a. Notifications (cachées s'il n'y en a pas) */}
+      <NotificationsPanel userId={user.id} lang={lang} hasEmail={!isChildAccount} />
+
+      <OfflinePanel lang={lang} />
+
+      {/* 1b. Série de jours et badges */}
+      <ProgressionPanel
+        userId={user.id}
+        lang={lang}
+        coursesCompleted={enrollmentsProgress.filter((e) => e.totalLessonsCount > 0 && e.progressPercent >= 100).length}
+      />
+
+      {/* 1b2. Certificats (cours terminés à 100 %) */}
+      <CertificatePanel
+        user={user}
+        lang={lang}
+        courses={courses}
+        completedCourseIds={enrollmentsProgress.filter((e) => e.totalLessonsCount > 0 && e.progressPercent >= 100).map((e) => e.courseId)}
+      />
+
+      {/* 1b3. Aide d'un professeur (visio ou question écrite) — caché pour un compte enfant */}
+      <TutoringPanel userId={user.id} lang={lang} hidden={isChildAccount} />
+
+      {/* 1c. Ma classe (code du professeur, messages) — caché pour un compte enfant */}
+      <ClassPanel userId={user.id} lang={lang} hidden={isChildAccount} />
 
       {/* 2. Enrolled Courses Section */}
       <div className="space-y-4">

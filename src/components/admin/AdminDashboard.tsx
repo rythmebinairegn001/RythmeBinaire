@@ -16,6 +16,9 @@ import {
   Eye,
   FileEdit,
   ArrowRight,
+  Building2,
+  BarChart3,
+  GraduationCap,
 } from 'lucide-react';
 import { PublicCourseItem } from '../../data/coursesData';
 import { PreferredLanguage, UserProfile } from '../../types/database';
@@ -31,6 +34,11 @@ import { isSupabaseConfigured } from '../../lib/supabase';
 import { CourseModal } from './CourseModal';
 import { ModulesManager } from './ModulesManager';
 import { StudentsList } from './StudentsList';
+import { SchoolsManager } from './SchoolsManager';
+import { TeachersManager } from './TeachersManager';
+import { AgeReportsManager } from './AgeReportsManager';
+import { ForumModeration } from './ForumModeration';
+import { AdminStats } from './AdminStats';
 import { AdminAccessDenied } from './AdminAccessDenied';
 
 interface Props {
@@ -54,7 +62,7 @@ export const AdminDashboard: React.FC<Props> = ({
   const isAdmin = user?.role === 'admin';
 
   // Navigation tab
-  const [activeTab, setActiveTab] = useState<'courses' | 'students'>('courses');
+  const [activeTab, setActiveTab] = useState<'courses' | 'students' | 'schools' | 'teachers' | 'age' | 'forum' | 'stats'>('courses');
 
   // Courses state
   const [courses, setCourses] = useState<PublicCourseItem[]>([]);
@@ -270,6 +278,74 @@ export const AdminDashboard: React.FC<Props> = ({
         >
           <Users className="w-4 h-4" />
           <span>{t.admin.tabStudents}</span>
+        </button>
+
+        <button
+          type="button"
+          id="tab-admin-schools"
+          onClick={() => setActiveTab('schools')}
+          className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 ${
+            activeTab === 'schools'
+              ? 'bg-purple-600 text-white shadow-xs'
+              : 'bg-[var(--color-card-bg)] text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] border border-[var(--color-card-border)]'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          <span>{lang === 'fr' ? 'Écoles' : 'Schools'}</span>
+        </button>
+
+        <button
+          type="button"
+          id="tab-admin-teachers"
+          onClick={() => setActiveTab('teachers')}
+          className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 ${
+            activeTab === 'teachers'
+              ? 'bg-purple-600 text-white shadow-xs'
+              : 'bg-[var(--color-card-bg)] text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] border border-[var(--color-card-border)]'
+          }`}
+        >
+          <GraduationCap className="w-4 h-4" />
+          <span>{lang === 'fr' ? 'Professeurs' : 'Teachers'}</span>
+        </button>
+
+        <button
+          type="button"
+          id="tab-admin-age"
+          onClick={() => setActiveTab('age')}
+          className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 ${
+            activeTab === 'age'
+              ? 'bg-purple-600 text-white shadow-xs'
+              : 'bg-[var(--color-card-bg)] text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] border border-[var(--color-card-border)]'
+          }`}
+        >
+          <span>{lang === 'fr' ? 'Âge' : 'Age'}</span>
+        </button>
+
+        <button
+          type="button"
+          id="tab-admin-forum"
+          onClick={() => setActiveTab('forum')}
+          className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 ${
+            activeTab === 'forum'
+              ? 'bg-purple-600 text-white shadow-xs'
+              : 'bg-[var(--color-card-bg)] text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] border border-[var(--color-card-border)]'
+          }`}
+        >
+          <span>{lang === 'fr' ? 'Entraide' : 'Community'}</span>
+        </button>
+
+        <button
+          type="button"
+          id="tab-admin-stats"
+          onClick={() => setActiveTab('stats')}
+          className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 ${
+            activeTab === 'stats'
+              ? 'bg-purple-600 text-white shadow-xs'
+              : 'bg-[var(--color-card-bg)] text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] border border-[var(--color-card-border)]'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span>{lang === 'fr' ? 'Statistiques' : 'Statistics'}</span>
         </button>
       </div>
 
@@ -522,6 +598,11 @@ export const AdminDashboard: React.FC<Props> = ({
 
       {/* TAB 2: STUDENTS DIRECTORY (MVP READ-ONLY) */}
       {activeTab === 'students' && <StudentsList lang={lang} />}
+      {activeTab === 'schools' && <SchoolsManager lang={lang} />}
+      {activeTab === 'teachers' && <TeachersManager lang={lang} />}
+      {activeTab === 'age' && <AgeReportsManager lang={lang} />}
+      {activeTab === 'forum' && <ForumModeration lang={lang} />}
+      {activeTab === 'stats' && <AdminStats lang={lang} />}
 
       {/* COURSE EDIT / CREATE MODAL */}
       <CourseModal

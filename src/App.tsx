@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { UserProfile, PreferredLanguage, CourseTrack } from './types/database';
 import { PublicCourseItem, INITIAL_COURSES } from './data/coursesData';
@@ -19,14 +19,30 @@ import { ResetPasswordForm } from './components/auth/ResetPasswordForm';
 import { AuthWaitingScreen } from './components/auth/AuthWaitingScreen';
 
 // Student Space Components
-import { StudentDashboard } from './components/student/StudentDashboard';
-import { StudentCoursePage } from './components/student/StudentCoursePage';
-import { StudentLessonPage } from './components/student/StudentLessonPage';
-import { StudentExercisePage } from './components/student/StudentExercisePage';
+
+
+
+
 import { StudentAccessDenied } from './components/student/StudentAccessDenied';
+import { LockedLesson } from './components/student/LockedLesson';
+
+
+
+
+import { loadMyChildLink } from './services/familyService';
+
+import { loadIsTeacher } from './services/teacherService';
+
+import {
+  AccessGrant,
+  AccessSettings,
+  DEFAULT_ACCESS_SETTINGS,
+  isLessonLocked,
+  loadMyAccess,
+} from './services/accessService';
 
 // Admin Space Components
-import { AdminDashboard } from './components/admin/AdminDashboard';
+
 import {
   getStudentCoursesProgress,
   enrollStudentInCourse,
@@ -36,12 +52,35 @@ import {
 import { getCourseLessonsList } from './data/lessonsData';
 
 // Modals
-import { SqlSchemaViewerModal } from './components/modals/SqlSchemaViewerModal';
-import { SupabaseConfigModal } from './components/modals/SupabaseConfigModal';
+
+import { OfflineBanner } from './components/student/OfflinePanel';
+import { saveProfile, loadProfile, clearProfile } from './lib/offlineStore';
+import { initOffline, isDisabled, swSupported } from './lib/offline';
+import { initInstall } from './lib/install';
+
+
+
+// Écrans chargés à la demande : la page d'accueil reste légère sur les connexions lentes.
+const StudentDashboard = lazy(() => import('./components/student/StudentDashboard').then((m) => ({ default: m.StudentDashboard })));
+const StudentCoursePage = lazy(() => import('./components/student/StudentCoursePage').then((m) => ({ default: m.StudentCoursePage })));
+const StudentLessonPage = lazy(() => import('./components/student/StudentLessonPage').then((m) => ({ default: m.StudentLessonPage })));
+const StudentExercisePage = lazy(() => import('./components/student/StudentExercisePage').then((m) => ({ default: m.StudentExercisePage })));
+const FamilyPage = lazy(() => import('./components/student/FamilyPage').then((m) => ({ default: m.FamilyPage })));
+const CommunityPage = lazy(() => import('./components/community/CommunityPage').then((m) => ({ default: m.CommunityPage })));
+const LegalPage = lazy(() => import('./components/public/LegalPage').then((m) => ({ default: m.LegalPage })));
+const PricingPage = lazy(() => import('./components/public/PricingPage').then((m) => ({ default: m.PricingPage })));
+const VerifyCertificatePage = lazy(() => import('./components/public/VerifyCertificatePage').then((m) => ({ default: m.VerifyCertificatePage })));
+const TeacherSpace = lazy(() => import('./components/teacher/TeacherSpace').then((m) => ({ default: m.TeacherSpace })));
+const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const SqlSchemaViewerModal = lazy(() => import('./components/modals/SqlSchemaViewerModal').then((m) => ({ default: m.SqlSchemaViewerModal })));
+const SupabaseConfigModal = lazy(() => import('./components/modals/SupabaseConfigModal').then((m) => ({ default: m.SupabaseConfigModal })));
 
 type AppView =
   | 'home'
   | 'catalog'
+  | 'pricing'
+  | 'terms'
+  | 'privacy'
   | 'login'
   | 'register'
   | 'forgot'
@@ -51,6 +90,10 @@ type AppView =
   | 'student-course'
   | 'student-lesson'
   | 'student-exercise'
+  | 'family'
+  | 'community'
+  | 'teacher'
+  | 'verify'
   | 'admin-dashboard';
 
 export default function App() {
@@ -71,7 +114,15 @@ export default function App() {
     applyTheme(nextTheme);
   };
 
-  const [currentView, setCurrentView] = useState<AppView>('home');
+  // Lien de vérification d'un certificat : /?verif=RB-XXXXXXXX
+  const [verifyCode] = useState<string>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('verif') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [currentView, setCurrentView] = useState<AppView>(verifyCode ? 'verify' : 'home');
   // Vrai quand l'utilisateur arrive depuis le lien de confirmation de l'e-mail
   const confirmedFromEmailRef = useRef(false);
   // Code d'un problème de lien e-mail (ex : lien expiré), affiché sur la page de connexion
@@ -81,6 +132,16 @@ export default function App() {
 
   const [courses, setCourses] = useState<PublicCourseItem[]>(INITIAL_COURSES);
   const [sessionUser, setSessionUser] = useState<UserProfile | null>(null);
+  // Accès payant / offert : lu à chaque entrée dans un cours, une leçon ou un exercice
+  const [myAccess, setMyAccess] = useState<{ loaded: boolean; settings: AccessSettings; grant: AccessGrant | null }>({
+    loaded: false,
+    settings: DEFAULT_ACCESS_SETTINGS,
+    grant: null,
+  });
+  // Compte enfant supervisé ? (un enfant n'a pas d'espace Famille). null = pas encore connu.
+  const [isChildAccount, setIsChildAccount] = useState<boolean | null>(null);
+  // Droit « professeur » (donné par l'admin) : affiche le bouton Espace professeur
+  const [isTeacher, setIsTeacher] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -111,6 +172,50 @@ export default function App() {
       console.warn('Error loading student progress:', err);
     }
   };
+
+  // Recharge l'accès de l'élève quand il ouvre un cours, une leçon ou un exercice
+  useEffect(() => {
+    if (!sessionUser || sessionUser.role !== 'eleve') return;
+    if (!['student-course', 'student-lesson', 'student-exercise'].includes(currentView)) return;
+    let cancelled = false;
+    setMyAccess((a) => ({ ...a, loaded: false }));
+    loadMyAccess(sessionUser.id).then((res) => {
+      if (!cancelled) setMyAccess({ loaded: true, ...res });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionUser?.id, sessionUser?.role, currentView]);
+
+  // Savoir si ce compte est un compte enfant (pour cacher l'espace Famille)
+  useEffect(() => {
+    if (!sessionUser || sessionUser.role !== 'eleve') {
+      setIsChildAccount(null);
+      return;
+    }
+    let cancelled = false;
+    loadMyChildLink(sessionUser.id).then((link) => {
+      if (!cancelled) setIsChildAccount(!!link);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionUser?.id, sessionUser?.role]);
+
+  // Savoir si ce compte est professeur
+  useEffect(() => {
+    if (!sessionUser || sessionUser.role !== 'eleve') {
+      setIsTeacher(false);
+      return;
+    }
+    let cancelled = false;
+    loadIsTeacher(sessionUser.id).then((v) => {
+      if (!cancelled) setIsTeacher(v);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionUser?.id, sessionUser?.role]);
 
   // Re-fetch progress whenever sessionUser changes
   useEffect(() => {
@@ -145,7 +250,17 @@ export default function App() {
         console.warn('Profile fetch warning:', error.message);
       }
 
+      if (!data && error) {
+        // Base injoignable (pas d'internet) : on reprend le dernier profil connu de ce compte
+        const cached = loadProfile();
+        if (cached && cached.id === userId) {
+          setSessionUser(cached as UserProfile);
+          return;
+        }
+      }
+
       if (data) {
+        saveProfile(data as UserProfile);
         setSessionUser(data as UserProfile);
         if (data.preferred_language) {
           handleLanguageChange(data.preferred_language as PreferredLanguage);
@@ -167,6 +282,27 @@ export default function App() {
       console.error('Error fetching profile:', e);
     }
   };
+
+  useEffect(() => {
+    void initOffline();
+    initInstall();
+  }, []);
+
+  // Hors connexion : une fois l'élève connecté, on télécharge discrètement (en temps libre) les écrans
+  // dont il aura besoin sans internet. Sinon ils ne seraient jamais gardés s'il ne les a pas déjà ouverts.
+  useEffect(() => {
+    if (sessionUser?.role !== 'eleve' || !swSupported() || isDisabled() || !navigator.onLine) return;
+    const warm = () => {
+      void import('./components/student/StudentCoursePage');
+      void import('./components/student/StudentLessonPage');
+      void import('./components/student/StudentExercisePage');
+    };
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void) => number };
+    const id = w.requestIdleCallback ? w.requestIdleCallback(warm) : window.setTimeout(warm, 4000);
+    return () => {
+      if (!w.requestIdleCallback) window.clearTimeout(id);
+    };
+  }, [sessionUser?.id, sessionUser?.role]);
 
   useEffect(() => {
     // Lecture du lien reçu par e-mail (Supabase place les infos après le # de l'adresse)
@@ -221,6 +357,14 @@ export default function App() {
         );
         goToDashboardIfConfirmedByEmail();
       }
+      else if (!navigator.onLine) {
+        // Session illisible hors connexion : on rouvre l'espace élève avec le dernier profil connu
+        const cached = loadProfile();
+        if (cached) {
+          setUserEmail(cached.email);
+          setSessionUser(cached as UserProfile);
+        }
+      }
       setLoading(false);
     });
 
@@ -237,7 +381,11 @@ export default function App() {
             session.user.user_metadata || {}
           );
           goToDashboardIfConfirmedByEmail();
-        } else {
+        } else if (event === 'SIGNED_OUT') {
+          clearProfile();
+          setSessionUser(null);
+          setUserEmail(null);
+        } else if (navigator.onLine) {
           setSessionUser(null);
           setUserEmail(null);
         }
@@ -258,6 +406,7 @@ export default function App() {
         console.warn('Sign out warning:', e);
       }
     }
+    clearProfile();
     setSessionUser(null);
     setUserEmail(null);
     setCurrentView('home');
@@ -346,8 +495,18 @@ export default function App() {
         onOpenConfigModal={() => setIsConfigModalOpen(true)}
       />
 
+      <OfflineBanner lang={lang} />
+
       {/* Main View Container */}
       <main className="flex-1 flex flex-col">
+        <Suspense
+          fallback={
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 py-24" role="status">
+              <span className="w-8 h-8 border-3 border-slate-900 border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs font-semibold text-slate-500">{lang === 'fr' ? 'Chargement…' : 'Loading…'}</span>
+            </div>
+          }
+        >
         {loading ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 py-24">
             <span className="w-8 h-8 border-3 border-slate-900 border-t-transparent rounded-full animate-spin" />
@@ -374,6 +533,12 @@ export default function App() {
                 onSelectCourse={(course) => setSelectedCourseForDetail(course)}
               />
             )}
+
+            {/* 2b. PAGES PUBLIQUES : tarifs, conditions, confidentialité */}
+            {currentView === 'pricing' && <PricingPage lang={lang} onNavigate={handleNavigate} />}
+            {currentView === 'verify' && <VerifyCertificatePage lang={lang} initialCode={verifyCode} />}
+            {currentView === 'terms' && <LegalPage kind="terms" lang={lang} onNavigate={handleNavigate} />}
+            {currentView === 'privacy' && <LegalPage kind="privacy" lang={lang} onNavigate={handleNavigate} />}
 
             {/* 3. AUTHENTICATION PAGES (Login, Register, Forgot, Reset) */}
             {(currentView === 'login' ||
@@ -447,6 +612,51 @@ export default function App() {
                     onContinueCourse={handleContinueCourse}
                     onOpenCourse={handleOpenCourse}
                     onBrowseCatalog={() => handleNavigate('catalog')}
+                    onOpenFamily={isChildAccount === false ? () => setCurrentView('family') : undefined}
+                    onOpenCommunity={isChildAccount === false ? () => setCurrentView('community') : undefined}
+                    onOpenTeacher={isTeacher ? () => setCurrentView('teacher') : undefined}
+                    isChildAccount={isChildAccount !== false}
+                  />
+                ) : (
+                  <StudentAccessDenied
+                    user={sessionUser}
+                    lang={lang}
+                    onLoginClick={() => setCurrentView('login')}
+                    onBackToHome={() => setCurrentView('home')}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* 4b. FAMILLE : l'adulte gère les comptes de ses enfants (jamais accessible à un compte enfant) */}
+            {currentView === 'family' && (
+              <div className="flex-1 flex flex-col">
+                {sessionUser && sessionUser.role === 'eleve' && isChildAccount === false ? (
+                  <FamilyPage
+                    user={sessionUser}
+                    lang={lang}
+                    onBack={() => setCurrentView('student-dashboard')}
+                    courseTitles={Object.fromEntries(courses.map((c) => [c.id, c.translations[lang].title]))}
+                  />
+                ) : (
+                  <StudentAccessDenied
+                    user={sessionUser}
+                    lang={lang}
+                    onLoginClick={() => setCurrentView('login')}
+                    onBackToHome={() => setCurrentView('home')}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* 4c. ENTRAIDE : questions/réponses (jamais pour un compte enfant, vérifié aussi côté base) */}
+            {currentView === 'community' && (
+              <div className="flex-1 flex flex-col">
+                {sessionUser && isChildAccount === false ? (
+                  <CommunityPage
+                    lang={lang}
+                    courses={courses.map((c) => ({ id: c.id, title: c.translations[lang].title }))}
+                    onBack={() => setCurrentView('student-dashboard')}
                   />
                 ) : (
                   <StudentAccessDenied
@@ -476,6 +686,13 @@ export default function App() {
                         onEnroll={handleEnrollCourse}
                         onSelectLesson={handleSelectLesson}
                         onOpenExercise={handleOpenExercise}
+                        lockedLessonIds={
+                          new Set(
+                            getCourseLessonsList(activeCourse.id)
+                              .filter((l, idx) => isLessonLocked(myAccess.settings, myAccess.grant, idx))
+                              .map((l) => l.id)
+                          )
+                        }
                       />
                     );
                   })()
@@ -505,6 +722,12 @@ export default function App() {
                           Leçon introuvable.
                         </div>
                       );
+                    }
+                    if (!myAccess.loaded) {
+                      return <div className="p-8 text-center text-slate-500 text-sm">…</div>;
+                    }
+                    if (isLessonLocked(myAccess.settings, myAccess.grant, allLessons.findIndex((l) => l.id === activeLesson.id))) {
+                      return <LockedLesson lang={lang} settings={myAccess.settings} onBack={() => setCurrentView('student-course')} />;
                     }
                     return (
                       <StudentLessonPage
@@ -545,6 +768,12 @@ export default function App() {
                           Exercice introuvable.
                         </div>
                       );
+                    }
+                    if (!myAccess.loaded) {
+                      return <div className="p-8 text-center text-slate-500 text-sm">…</div>;
+                    }
+                    if (isLessonLocked(myAccess.settings, myAccess.grant, allLessons.findIndex((l) => l.id === activeLesson.id))) {
+                      return <LockedLesson lang={lang} settings={myAccess.settings} onBack={() => setCurrentView('student-course')} />;
                     }
                     return (
                       <StudentExercisePage
@@ -612,6 +841,22 @@ export default function App() {
               </div>
             )}
 
+            {/* Espace professeur */}
+            {currentView === 'teacher' && (
+              <div className="flex-1 flex flex-col">
+                {sessionUser && sessionUser.role === 'eleve' && isTeacher ? (
+                  <TeacherSpace user={sessionUser} lang={lang} courses={courses} onBack={() => setCurrentView('student-dashboard')} />
+                ) : (
+                  <StudentAccessDenied
+                    user={sessionUser}
+                    lang={lang}
+                    onLoginClick={() => setCurrentView('login')}
+                    onBackToHome={() => setCurrentView('home')}
+                  />
+                )}
+              </div>
+            )}
+
             {/* 9. ADMIN DASHBOARD SCREEN */}
             {currentView === 'admin-dashboard' && (
               <div className="flex-1 flex flex-col">
@@ -626,6 +871,7 @@ export default function App() {
             )}
           </>
         )}
+        </Suspense>
       </main>
 
       {/* Course Detail Modal (Accessible from anywhere without page reload) */}
@@ -650,17 +896,22 @@ export default function App() {
       />
 
       {/* Database & System Modals */}
-      <SqlSchemaViewerModal
-        isOpen={isSchemaModalOpen}
-        onClose={() => setIsSchemaModalOpen(false)}
-        lang={lang}
-      />
-
-      <SupabaseConfigModal
-        isOpen={isConfigModalOpen}
-        onClose={() => setIsConfigModalOpen(false)}
-        lang={lang}
-      />
+      <Suspense fallback={null}>
+        {isSchemaModalOpen && (
+          <SqlSchemaViewerModal
+            isOpen={isSchemaModalOpen}
+            onClose={() => setIsSchemaModalOpen(false)}
+            lang={lang}
+          />
+        )}
+        {isConfigModalOpen && (
+          <SupabaseConfigModal
+            isOpen={isConfigModalOpen}
+            onClose={() => setIsConfigModalOpen(false)}
+            lang={lang}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

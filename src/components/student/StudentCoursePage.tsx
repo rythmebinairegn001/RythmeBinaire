@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Code2,
   Globe2,
+  Lock,
 } from 'lucide-react';
 import { PreferredLanguage, UserProfile } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
@@ -26,6 +27,8 @@ interface Props {
   onEnroll: (courseId: string) => Promise<void>;
   onSelectLesson: (courseId: string, lessonId: string) => void;
   onOpenExercise?: (courseId: string, lessonId: string) => void;
+  /** Leçons qui demandent un accès complet (cadenas affiché). */
+  lockedLessonIds?: Set<string>;
 }
 
 export const StudentCoursePage: React.FC<Props> = ({
@@ -36,6 +39,7 @@ export const StudentCoursePage: React.FC<Props> = ({
   onEnroll,
   onSelectLesson,
   onOpenExercise,
+  lockedLessonIds,
 }) => {
   const t = getTranslation(lang);
   const [enrolling, setEnrolling] = useState(false);
@@ -216,6 +220,7 @@ export const StudentCoursePage: React.FC<Props> = ({
                   {sortedLessons.map((lesson) => {
                     const lessonTrans = lesson.translations[lang] || lesson.translations.fr;
                     const isCompleted = completedLessonIds.has(lesson.id);
+                    const isLocked = !!lockedLessonIds?.has(lesson.id);
 
                     return (
                       <div
@@ -227,7 +232,9 @@ export const StudentCoursePage: React.FC<Props> = ({
                         <div className="flex items-center gap-3.5 min-w-0">
                           {/* Visual completion indicator */}
                           <div className="shrink-0">
-                            {isCompleted ? (
+                            {isLocked ? (
+                              <Lock className="w-5 h-5 text-amber-500" />
+                            ) : isCompleted ? (
                               <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-500/20" />
                             ) : (
                               <Circle className="w-5 h-5 text-slate-300 dark:text-slate-600" />
