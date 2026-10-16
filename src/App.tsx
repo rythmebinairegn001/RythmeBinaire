@@ -56,6 +56,7 @@ import { getCourseLessonsList } from './data/lessonsData';
 import { OfflineBanner } from './components/student/OfflinePanel';
 import { saveProfile, loadProfile, clearProfile } from './lib/offlineStore';
 import { initOffline, isDisabled, swSupported } from './lib/offline';
+import { setAnalyticsContext, trackEvent, trackPageView } from './lib/analytics';
 import { initInstall } from './lib/install';
 
 
@@ -288,6 +289,14 @@ export default function App() {
     initInstall();
   }, []);
 
+  // Statistiques anonymes : langue, connecté ou non, puis chaque changement d'écran = une page vue
+  useEffect(() => {
+    setAnalyticsContext({ lang: lang === 'en' ? 'en' : 'fr', loggedIn: !!sessionUser });
+  }, [lang, sessionUser]);
+  useEffect(() => {
+    trackPageView(currentView);
+  }, [currentView]);
+
   // Hors connexion : une fois l'élève connecté, on télécharge discrètement (en temps libre) les écrans
   // dont il aura besoin sans internet. Sinon ils ne seraient jamais gardés s'il ne les a pas déjà ouverts.
   useEffect(() => {
@@ -460,12 +469,15 @@ export default function App() {
   const handleEnrollCourse = async (courseId: string) => {
     if (!sessionUser) return;
     await enrollStudentInCourse(sessionUser.id, courseId);
+    trackEvent('course_start', courseId);
     await refreshEnrollmentsProgress(sessionUser.id);
   };
 
   const handleMarkCompleted = async (courseId: string, lessonId: string) => {
     if (!sessionUser) return;
-    await markLessonCompleted(sessionUser.id, courseId, lessonId);
+    const done = await markLessonCompleted(sessionUser.id, courseId, lessonId);
+    trackEvent('course_start', courseId); // ignoré par la base si déjà compté
+    if (done?.progressPercent >= 100) trackEvent('course_complete', courseId);
     await refreshEnrollmentsProgress(sessionUser.id);
   };
 

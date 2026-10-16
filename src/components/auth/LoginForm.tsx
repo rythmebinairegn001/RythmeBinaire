@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, LogIn, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import { trackEvent } from '../../lib/analytics';
 import { PreferredLanguage } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
 import { loginIdentifierToEmail } from '../../services/familyService';
@@ -81,6 +82,7 @@ export const LoginForm: React.FC<Props> = ({ lang, onNavigate, onLoginSuccess, o
       if (error) {
         throw error;
       }
+      trackEvent('login'); // statistique anonyme (aucune donnée personnelle)
 
       if (data?.user) {
         setSuccessMsg(t.auth.loginSuccess);

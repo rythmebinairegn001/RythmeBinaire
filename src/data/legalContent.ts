@@ -135,6 +135,7 @@ const DOCS: Record<Kind, Record<Lang, LegalDoc>> = {
             'Ton apprentissage : cours suivis, leçons terminées, code que tu soumets dans les exercices, résultats des tests et indices demandés.',
             'Pour un enfant de moins de 12 ans : seulement un prénom, un identifiant de connexion et un mot de passe choisis par l\'adulte. Nous ne demandons ni âge, ni e-mail, ni téléphone pour l\'enfant.',
             'Pour les paiements : nous notons qu\'un paiement a été reçu (montant, période, référence). Nous ne conservons aucun numéro de carte ; le paiement se fait via Mobile Money.',
+            "Statistiques de visite anonymes : nous comptons les pages vues et quelques actions (inscription, connexion, début et fin d'un cours) avec un numéro aléatoire stocké dans ton navigateur. Ce numéro n'est lié ni à ton nom, ni à ton e-mail, ni à ton compte, et nous n'utilisons pas ton adresse IP. Tu peux refuser avec le réglage « Ne pas me suivre » (Do Not Track) de ton navigateur.",
           ],
         },
         {
@@ -179,6 +180,7 @@ const DOCS: Record<Kind, Record<Lang, LegalDoc>> = {
             'Your learning: courses followed, completed lessons, code you submit in exercises, test results and hints requested.',
             'For a child under 12: only a first name, a login username and a password chosen by the adult. We do not ask for age, email or phone number for the child.',
             'For payments: we record that a payment was received (amount, period, reference). We keep no card numbers; payment is made through Mobile Money.',
+            'Anonymous visit statistics: we count page views and a few actions (sign-up, login, starting and finishing a course) using a random number stored in your browser. This number is not linked to your name, e-mail or account, and we do not use your IP address. You can opt out with your browser\'s "Do Not Track" setting.',
           ],
         },
         {

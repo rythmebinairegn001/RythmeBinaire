@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Mail, Lock, User, UserPlus, AlertCircle, ArrowRight, CheckCircle2, Globe } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import { trackEvent } from '../../lib/analytics';
 import { PreferredLanguage } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
 
@@ -208,6 +209,8 @@ export const RegisterForm: React.FC<Props> = ({ lang, onNavigate, onRegisterSucc
       if (error) {
         throw error;
       }
+      // statistique anonyme : une vraie nouvelle inscription (pas l'adresse déjà utilisée)
+      if (data?.user && !(data.user.identities && data.user.identities.length === 0)) trackEvent('signup');
 
       if (data?.session) {
         // Confirmation par e-mail désactivée dans Supabase : l'élève est déjà connecté
