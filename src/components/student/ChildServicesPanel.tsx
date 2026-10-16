@@ -10,6 +10,7 @@ import {
   cancelBooking,
   canCancel,
   canJoin,
+  joinLabel,
   errorKind,
   groupByDay,
   listMyBookings,
@@ -211,7 +212,7 @@ export const ChildTutoringView: React.FC<{
               <div className="flex flex-wrap gap-2">
                 {canJoin(b.starts_at, b.duration_min, now) ? (
                   <a href={b.meeting_url} target="_blank" rel="noopener noreferrer" className="px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 text-white">
-                    {fr ? 'Rejoindre la séance' : 'Join the session'}
+                    {joinLabel(b.meeting_url, lang)}
                   </a>
                 ) : (
                   <span className="text-slate-500 py-2">{fr ? 'Le bouton « Rejoindre » apparaît 10 minutes avant.' : 'The “Join” button appears 10 minutes before.'}</span>

@@ -14,6 +14,8 @@ export interface TeacherClass {
   join_code: string;
   open: boolean;
   created_at: string;
+  /** Lien d'invitation du groupe WhatsApp de la classe (facultatif ; nécessite supabase/classes-whatsapp.sql). */
+  whatsapp_url?: string | null;
 }
 
 export interface ClassStudent {
@@ -381,4 +383,34 @@ export async function addTeacherByEmail(email: string): Promise<'added' | 'not_r
 export async function removeTeacher(userId: string): Promise<void> {
   const { error } = await supabase.from('teachers').delete().eq('user_id', userId);
   if (error) throw new Error(error.message);
+}
+
+/** Lien d'invitation d'un groupe WhatsApp : https://chat.whatsapp.com/<code> (rien d'autre n'est accepté). */
+export const WHATSAPP_GROUP_RE = /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]{10,40}$/;
+export function normalizeWhatsappGroupUrl(raw: string): string | null {
+  const u = raw.trim().replace(/[?#].*$/, '').replace(/\/+$/, '');
+  return WHATSAPP_GROUP_RE.test(u) ? u : null;
+}
+
+/** Le professeur enregistre (ou efface avec une chaîne vide) le groupe WhatsApp de sa classe. */
+export async function setClassWhatsapp(classId: string, raw: string): Promise<void> {
+  const clean = raw.trim();
+  const url = clean ? normalizeWhatsappGroupUrl(clean) : null;
+  if (clean && !url) throw new Error('whatsapp_invalid');
+  const { error } = await supabase.from('classes').update({ whatsapp_url: url }).eq('id', classId);
+  if (error) throw new Error(error.message);
+}
+
+/** Liens WhatsApp de mes classes (vide pour un compte enfant ou si le script SQL n'est pas lancé). */
+export async function listMyClassLinks(): Promise<Record<string, string>> {
+  if (!isSupabaseConfigured()) return {};
+  try {
+    const { data, error } = await supabase.rpc('my_class_links');
+    if (error) return {};
+    const out: Record<string, string> = {};
+    for (const r of (data || []) as { class_id: string; whatsapp_url: string }[]) if (r.whatsapp_url) out[r.class_id] = r.whatsapp_url;
+    return out;
+  } catch {
+    return {};
+  }
 }

@@ -13,6 +13,7 @@ import {
   answerHours,
   hoursLabel,
   isOverdue,
+  providerName,
   loadQuota,
   groupByDay,
   listTeacherQuestions,
@@ -21,6 +22,7 @@ import {
 } from '../../services/tutoringService';
 
 const btn = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 disabled:opacity-40';
+const primaryBtn = 'inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold bg-amber-400 hover:bg-amber-300 text-slate-900 border border-amber-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed';
 const inputCls = 'w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white text-slate-900';
 
 /** Affichage pur : mes créneaux (libres / réservés) et les questions des élèves. */
@@ -38,12 +40,16 @@ export const TutoringTeacherView: React.FC<{
 }> = ({ lang, slots, questions, onCancelSlot, answers, onAnswer, onSendAnswer, hours = 24, now = new Date() }) => {
   const fr = lang === 'fr';
   const open = questions.filter((q) => q.status === 'open');
+  // Un créneau est « passé » quand il est fini : on le range à part pour ne pas encombrer la liste.
+  const isPast = (s: TeacherSlot) => new Date(s.starts_at).getTime() + s.duration_min * 60_000 < now.getTime();
+  const upcoming = slots.filter((s) => !isPast(s));
+  const past = slots.filter(isPast);
   return (
     <div className="space-y-6">
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-slate-900">{fr ? 'Mes créneaux' : 'My slots'}</h3>
-        {slots.length === 0 && <p className="text-sm text-slate-500">{fr ? 'Aucun créneau à venir.' : 'No upcoming slot.'}</p>}
-        {groupByDay(slots, lang).map((g) => (
+        {upcoming.length === 0 && <p className="text-sm text-slate-500">{fr ? 'Aucun créneau à venir.' : 'No upcoming slot.'}</p>}
+        {groupByDay(upcoming, lang).map((g) => (
           <div key={g.key} className="space-y-1.5">
             <p className="text-xs font-bold text-slate-700 capitalize">{g.label}</p>
             <ul className="space-y-1.5">
@@ -68,6 +74,29 @@ export const TutoringTeacherView: React.FC<{
           </div>
         ))}
       </div>
+
+      {past.length > 0 && (
+        <div className="space-y-2" id="past-slots">
+          <h3 className="text-sm font-bold text-slate-500">{fr ? 'Créneaux passés' : 'Past slots'}</h3>
+          <ul className="space-y-1.5">
+            {past.map((s) => (
+              <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                <span>
+                  {new Date(s.starts_at).toLocaleDateString(fr ? 'fr-FR' : 'en-GB', { day: '2-digit', month: 'short' })} · {timeLabel(s.starts_at, lang)} · {s.duration_min} min
+                </span>
+                <span>
+                  {s.status === 'booked' ? `${fr ? 'Terminé' : 'Done'} — ${s.student_name}` : fr ? 'Passé, personne n’a réservé' : 'Past, nobody booked'}
+                </span>
+                {s.status !== 'booked' && (
+                  <button type="button" className={btn} onClick={() => onCancelSlot(s)}>
+                    {fr ? 'Retirer' : 'Remove'}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-slate-900">
@@ -184,10 +213,24 @@ export const TutoringTeacherPanel: React.FC<{ user: UserProfile; lang: Preferred
           {fr ? 'Lien de visio (https://…)' : 'Meeting link (https://…)'}
           <input className={inputCls} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://meet.google.com/…" />
         </label>
-        <button type="submit" className={btn} disabled={!when || !url.trim()}>
+        <button type="submit" className={primaryBtn} disabled={!when || !url.trim()}>
           {fr ? 'Publier' : 'Publish'}
         </button>
       </form>
+      <p id="provider-hint" className="text-xs text-slate-500 -mt-3">
+        {providerName(url)
+          ? fr ? `Lien reconnu : ${providerName(url)}. L’élève verra « Rejoindre sur ${providerName(url)} ».` : `Link recognised: ${providerName(url)}. The student will see “Join on ${providerName(url)}”.`
+          : fr
+            ? 'Astuce WhatsApp (léger, idéal avec une connexion faible) : dans WhatsApp, onglet Appels → « Créer un lien d’appel », puis colle le lien ici. Google Meet, Zoom et Jitsi marchent aussi.'
+            : 'WhatsApp tip (light, ideal on a weak connection): in WhatsApp, Calls tab → “Create call link”, then paste the link here. Google Meet, Zoom and Jitsi work too.'}
+      </p>
+      {(!when || !url.trim()) && (
+        <p id="publish-hint" className="text-xs text-slate-500 -mt-3">
+          {fr
+            ? `Pour publier, il reste à remplir : ${[!when && 'la date et l’heure', !url.trim() && 'le lien de visio'].filter(Boolean).join(' et ')}.`
+            : `To publish, still to fill in: ${[!when && 'the date and time', !url.trim() && 'the meeting link'].filter(Boolean).join(' and ')}.`}
+        </p>
+      )}
       {note && <p role="status" className={`text-sm ${note.kind === 'ok' ? 'text-emerald-800' : 'text-red-700'}`}>{note.text}</p>}
       <TutoringTeacherView
         lang={lang}

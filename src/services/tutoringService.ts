@@ -135,6 +135,36 @@ export function validateSlotInput(i: { startsAtIso: string; durationMin: number;
   return null;
 }
 
+export type MeetingProvider = 'whatsapp' | 'meet' | 'zoom' | 'jitsi' | 'other';
+
+/** Reconnaît le service de visio d'après le lien (pour un bouton « Rejoindre » plus clair). */
+export function meetingProvider(url: string): MeetingProvider {
+  try {
+    const h = new URL(url.trim()).hostname.toLowerCase();
+    if (h === 'call.whatsapp.com' || h === 'wa.me' || h.endsWith('.whatsapp.com') || h === 'whatsapp.com') return 'whatsapp';
+    if (h === 'meet.google.com') return 'meet';
+    if (h === 'zoom.us' || h.endsWith('.zoom.us') || h.endsWith('.zoom.com')) return 'zoom';
+    if (h === 'meet.jit.si' || h.endsWith('.jit.si')) return 'jitsi';
+  } catch {
+    /* lien non valide : « other » */
+  }
+  return 'other';
+}
+
+const PROVIDER_NAMES: Record<Exclude<MeetingProvider, 'other'>, string> = { whatsapp: 'WhatsApp', meet: 'Google Meet', zoom: 'Zoom', jitsi: 'Jitsi' };
+
+export function providerName(url: string): string | null {
+  const p = meetingProvider(url);
+  return p === 'other' ? null : PROVIDER_NAMES[p];
+}
+
+/** Texte du bouton pour l'élève : « Rejoindre sur WhatsApp », « Rejoindre sur Zoom »… ou le texte par défaut. */
+export function joinLabel(url: string, lang: 'fr' | 'en'): string {
+  const n = providerName(url);
+  if (!n) return lang === 'fr' ? 'Rejoindre la séance' : 'Join the session';
+  return lang === 'fr' ? `Rejoindre sur ${n}` : `Join on ${n}`;
+}
+
 export const SLOT_INPUT_ERRORS: Record<SlotInputError, { fr: string; en: string }> = {
   too_soon: { fr: 'Le créneau doit commencer dans plus de 2 heures.', en: 'The slot must start in more than 2 hours.' },
   url_invalid: { fr: 'Le lien de visio doit commencer par https:// (Meet, Zoom, WhatsApp…).', en: 'The meeting link must start with https:// (Meet, Zoom, WhatsApp…).' },

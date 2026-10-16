@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { PreferredLanguage } from '../../types/database';
-import { MyClass, TeacherMessage, joinClass, leaveClass, listMyJoinedClasses, listMyMessages, markMessagesRead } from '../../services/teacherService';
+import { MyClass, TeacherMessage, joinClass, leaveClass, listMyClassLinks, listMyJoinedClasses, listMyMessages, markMessagesRead } from '../../services/teacherService';
 
 interface Props {
   userId: string;
@@ -21,12 +21,14 @@ export const ClassView: React.FC<{
   lang: PreferredLanguage;
   classes: MyClass[];
   messages: TeacherMessage[];
+  /** Liens de groupe WhatsApp par classe (facultatif). */
+  links?: Record<string, string>;
   code: string;
   onCode: (v: string) => void;
   onJoin: () => void;
   onLeave: (c: MyClass) => void;
   feedback: { kind: 'ok' | 'error'; text: string } | null;
-}> = ({ lang, classes, messages, code, onCode, onJoin, onLeave, feedback }) => {
+}> = ({ lang, classes, messages, links = {}, code, onCode, onJoin, onLeave, feedback }) => {
   const fr = lang === 'fr';
   const unread = messages.filter((m) => !m.read_at).length;
   const classNameOf = (id: string) => classes.find((c) => c.class_id === id)?.class_name;
@@ -68,9 +70,16 @@ export const ClassView: React.FC<{
                 <div className="font-semibold text-slate-900 text-sm">{c.class_name}</div>
                 <div className="text-xs text-slate-500">{fr ? 'Professeur' : 'Teacher'} : {c.teacher_name}</div>
               </div>
+              <div className="flex items-center gap-3">
+                {links[c.class_id] && (
+                  <a href={links[c.class_id]} target="_blank" rel="noopener noreferrer" className="px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 text-white">
+                    {fr ? 'Rejoindre le groupe WhatsApp' : 'Join the WhatsApp group'}
+                  </a>
+                )}
               <button type="button" className="text-xs font-semibold text-slate-600 hover:text-red-700 underline" onClick={() => onLeave(c)}>
                 {fr ? 'Quitter' : 'Leave'}
               </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -106,13 +115,15 @@ export const ClassView: React.FC<{
 export const ClassPanel: React.FC<Props> = ({ userId, lang, hidden }) => {
   const fr = lang === 'fr';
   const [classes, setClasses] = useState<MyClass[]>([]);
+  const [links, setLinks] = useState<Record<string, string>>({});
   const [messages, setMessages] = useState<TeacherMessage[]>([]);
   const [code, setCode] = useState('');
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
   const load = useCallback(async () => {
-    const [c, m] = await Promise.all([listMyJoinedClasses(), listMyMessages(userId)]);
+    const [c, m, l] = await Promise.all([listMyJoinedClasses(), listMyMessages(userId), listMyClassLinks()]);
     setClasses(c);
+    setLinks(l);
     setMessages(m);
     // Les messages affichés sont considérés comme lus après un court délai
     const unreadIds = m.filter((x) => !x.read_at).map((x) => x.id);
@@ -130,6 +141,7 @@ export const ClassPanel: React.FC<Props> = ({ userId, lang, hidden }) => {
       lang={lang}
       classes={classes}
       messages={messages}
+      links={links}
       code={code}
       onCode={setCode}
       feedback={feedback}

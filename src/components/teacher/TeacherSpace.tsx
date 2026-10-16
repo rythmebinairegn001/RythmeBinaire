@@ -18,6 +18,8 @@ import {
   deleteClass,
   listClassCourses,
   listMyClasses,
+  setClassWhatsapp,
+  normalizeWhatsappGroupUrl,
   loadClassData,
   overviewToCsv,
   removeStudent,
@@ -262,8 +264,6 @@ export const TeacherSpace: React.FC<Props> = ({ user, lang, courses, onBack }) =
 
       <NotificationsPanel userId={user.id} lang={lang} />
 
-      <TutoringTeacherPanel user={user} lang={lang} />
-
       {message && (
         <div role="status" className={`rounded-2xl border px-4 py-3 text-sm ${message.kind === 'ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-red-50 border-red-200 text-red-800'}`}>
           {message.text}
@@ -309,6 +309,8 @@ export const TeacherSpace: React.FC<Props> = ({ user, lang, courses, onBack }) =
           }}
         />
       ))}
+
+      <TutoringTeacherPanel user={user} lang={lang} />
     </div>
   );
 };
@@ -418,6 +420,7 @@ const ClassCard: React.FC<{
               <Trash2 className="w-3.5 h-3.5" /> {fr ? 'Supprimer la classe' : 'Delete class'}
             </button>
           </div>
+          <WhatsappGroupEditor cls={cls} lang={lang} />
           {!cls.open && <p className="text-xs text-amber-700">{fr ? 'Le code est fermé : personne ne peut plus rejoindre cette classe.' : 'The code is closed: nobody can join this class any more.'}</p>}
 
           <div>
@@ -513,5 +516,64 @@ const ClassCard: React.FC<{
         </div>
       )}
     </section>
+  );
+};
+
+/** Le professeur colle ici le lien d'invitation du groupe WhatsApp de sa classe. */
+const WhatsappGroupEditor: React.FC<{ cls: TeacherClass; lang: PreferredLanguage }> = ({ cls, lang }) => {
+  const fr = lang === 'fr';
+  const [value, setValue] = useState(cls.whatsapp_url || '');
+  const [saved, setSaved] = useState(cls.whatsapp_url || '');
+  const [note, setNote] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const clean = value.trim();
+  const valid = !clean || !!normalizeWhatsappGroupUrl(clean);
+  return (
+    <div id={`wa-group-${cls.id}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+      <h3 className="text-sm font-bold text-slate-900">{fr ? 'Groupe WhatsApp de la classe' : 'Class WhatsApp group'}</h3>
+      <p className="text-xs text-slate-600">
+        {fr
+          ? 'Crée un groupe dans WhatsApp, ouvre « Infos du groupe » → « Inviter via un lien », copie le lien et colle-le ici. Tes élèves de 12 ans et plus verront un bouton « Rejoindre le groupe WhatsApp » ; les comptes enfants ne le voient jamais. Les participants du groupe voient le numéro des autres : préviens tes élèves.'
+          : 'Create a group in WhatsApp, open “Group info” → “Invite via link”, copy the link and paste it here. Students aged 12 and over will see a “Join the WhatsApp group” button; child accounts never see it. Group members can see each other’s number: tell your students.'}
+      </p>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          className={inputCls}
+          value={value}
+          maxLength={120}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setNote(null);
+          }}
+          placeholder="https://chat.whatsapp.com/…"
+          aria-label={fr ? 'Lien du groupe WhatsApp' : 'WhatsApp group link'}
+        />
+        <button
+          type="button"
+          className={btnCls}
+          disabled={!valid || clean === saved.trim()}
+          onClick={async () => {
+            try {
+              await setClassWhatsapp(cls.id, clean);
+              const next = clean ? normalizeWhatsappGroupUrl(clean) || '' : '';
+              setValue(next);
+              setSaved(next);
+              setNote({ kind: 'ok', text: next ? (fr ? 'Lien enregistré.' : 'Link saved.') : fr ? 'Lien retiré.' : 'Link removed.' });
+            } catch (e) {
+              const m = e instanceof Error ? e.message : '';
+              setNote({
+                kind: 'error',
+                text: /column|schema|whatsapp_url/i.test(m)
+                  ? fr ? "Fonction pas encore activée : lance supabase/classes-whatsapp.sql dans Supabase." : 'Not enabled yet: run supabase/classes-whatsapp.sql in Supabase.'
+                  : fr ? 'Lien refusé.' : 'Link refused.',
+              });
+            }
+          }}
+        >
+          {clean ? (fr ? 'Enregistrer' : 'Save') : fr ? 'Retirer' : 'Remove'}
+        </button>
+      </div>
+      {!valid && <p className="text-xs text-red-700">{fr ? 'Ce n’est pas un lien d’invitation de groupe WhatsApp (il doit commencer par https://chat.whatsapp.com/).' : 'This is not a WhatsApp group invite link (it must start with https://chat.whatsapp.com/).'}</p>}
+      {note && <p role="status" className={`text-xs ${note.kind === 'ok' ? 'text-emerald-800' : 'text-red-700'}`}>{note.text}</p>}
+    </div>
   );
 };

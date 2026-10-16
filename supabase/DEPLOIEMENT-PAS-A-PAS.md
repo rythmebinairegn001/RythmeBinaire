@@ -109,6 +109,9 @@ La page Tarifs propose un sélecteur de pays. Les montants sont dans `src/data/p
 ## Statistiques d'audience (script 15, à part, facultatif)
 Compte les visiteurs (anonymes), les pages vues et quelques actions ; l'onglet « Statistiques » de l'admin affiche une section « Audience du site ». Détails : `ANALYTICS-ACTIVATION.md`. Tant que le script n'est pas lancé, le site fonctionne normalement et la section affiche un message d'activation.
 
+## Groupe WhatsApp des classes (script 16, à part, facultatif)
+Le professeur peut ajouter le lien d'un groupe WhatsApp à sa classe ; les élèves de 12 ans et plus voient un bouton pour le rejoindre. Détails : `CLASSES-WHATSAPP-ACTIVATION.md`.
+
 ## Récapitulatif de l'ordre complet
-1 à 10 : étape 1 ci-dessus (dans l'ordre) → 13 `enfants-v2.sql` (après 3, 5 et 9) → 12 `age12.sql` → déployer le site → 14 `entraide.sql` (quand tu veux) → 15 `analytics.sql` (quand tu veux) → `acces-serveur.sql` juste avant d'allumer l'accès payant.
+1 à 10 : étape 1 ci-dessus (dans l'ordre) → 13 `enfants-v2.sql` (après 3, 5 et 9) → 12 `age12.sql` → déployer le site → 14 `entraide.sql` (quand tu veux) → 15 `analytics.sql` (quand tu veux) → 16 `classes-whatsapp.sql` (quand tu veux, après 5) → `acces-serveur.sql` juste avant d'allumer l'accès payant.
 Chaque script est sans danger à relancer, sauf : ne pas relancer `tutorat.sql` ni `professeurs.sql` après `enfants-v2.sql`.
