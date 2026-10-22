@@ -19,6 +19,7 @@ import {
   registerCourseModules,
 } from '../data/lessonsData';
 import { ExerciseTest } from '../types/database';
+import { quizProblem } from '../data/quiz';
 import { EXERCISE_TESTS } from '../data/exerciseTestsData';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -532,6 +533,10 @@ export function validateCourseFile(raw: any): CourseContentFile {
     for (const l of m.lessons) {
       if (!l.id || !l.translations?.fr?.title || typeof l.translations.fr.content !== 'string')
         throw new Error(`Leçon invalide : ${l.id || '(sans id)'}`);
+      if (l.exercise?.type === 'quiz') {
+        const bad = quizProblem(l.exercise.instructions?.fr) || (l.exercise.instructions?.en ? quizProblem(l.exercise.instructions.en) : null);
+        if (bad) throw new Error(`Leçon ${l.id} : ${bad}`);
+      }
     }
   }
   return raw as CourseContentFile;

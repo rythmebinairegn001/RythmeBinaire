@@ -26,6 +26,9 @@ interface Props {
   onOpenExercise?: (courseId: string, lessonId: string) => void;
 }
 
+import { parseQuiz, DEFAULT_PASS_PERCENT } from '../../data/quiz';
+const quizPass = (raw: string) => parseQuiz(raw)?.pass_percent ?? DEFAULT_PASS_PERCENT;
+
 export const StudentLessonPage: React.FC<Props> = ({
   course,
   lesson,
@@ -124,7 +127,9 @@ export const StudentLessonPage: React.FC<Props> = ({
                 <div className="flex items-center gap-2 text-amber-900 dark:text-amber-300 font-bold text-sm">
                   <Code2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                   <span>
-                    {t.student.exerciseNoticeTitle} ({lesson.exercise.language.toUpperCase()})
+                    {lesson.exercise.type === 'quiz'
+                      ? lang === 'en' ? 'Lesson quiz' : 'Quiz de la leçon'
+                      : <>{t.student.exerciseNoticeTitle} ({lesson.exercise.language.toUpperCase()})</>}
                   </span>
                 </div>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-900 dark:text-amber-300">
@@ -133,7 +138,11 @@ export const StudentLessonPage: React.FC<Props> = ({
               </div>
 
               <p className="text-xs sm:text-sm text-amber-900/90 dark:text-amber-200/90 leading-relaxed">
-                {lesson.exercise.instructions[lang] || lesson.exercise.instructions.fr}
+                {lesson.exercise.type === 'quiz'
+                  ? lang === 'en'
+                    ? `Test what you learned with a few questions. You need ${quizPass(lesson.exercise.instructions.fr)}% correct answers to complete the lesson.`
+                    : `Teste ce que tu as appris avec quelques questions. Il faut ${quizPass(lesson.exercise.instructions.fr)} % de bonnes réponses pour valider la leçon.`
+                  : lesson.exercise.instructions[lang] || lesson.exercise.instructions.fr}
               </p>
 
               {/* Bouton "Faire l'exercice" */}

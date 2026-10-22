@@ -157,7 +157,7 @@ export const ExerciseModal: React.FC<Props> = ({
       const exerciseId = lesson.exercise?.id || `ex-${lesson.id}`;
       const exerciseData: DetailedLesson['exercise'] = {
         id: exerciseId,
-        type: 'code_sandbox',
+        type: lesson.exercise?.type === 'quiz' ? 'quiz' : 'code_sandbox',
         language,
         starter_code: starterCode,
         instructions: {

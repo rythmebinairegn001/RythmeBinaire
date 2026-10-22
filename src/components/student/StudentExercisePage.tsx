@@ -23,6 +23,8 @@ import { PublicCourseItem } from '../../data/coursesData';
 import { PreferredLanguage, UserProfile, AiHintRequest, ExerciseTest } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
 import { CodeEditor } from './CodeEditor';
+import { QuizExercise } from './QuizExercise';
+import { QUIZ_TYPE } from '../../data/quiz';
 import {
   executeCode,
   requestAiHint,
@@ -42,7 +44,7 @@ interface Props {
   onNextLesson?: () => void;
 }
 
-export const StudentExercisePage: React.FC<Props> = ({
+const CodeExercisePage: React.FC<Props> = ({
   course,
   lesson,
   user,
@@ -862,3 +864,18 @@ export const StudentExercisePage: React.FC<Props> = ({
     </div>
   );
 };
+
+/** Aiguillage : un exercice de type « quiz » a son propre écran, les autres gardent l'atelier de code. */
+export const StudentExercisePage: React.FC<Props> = (props) =>
+  props.lesson.exercise?.type === QUIZ_TYPE ? (
+    <QuizExercise
+      course={props.course}
+      lesson={props.lesson}
+      lang={props.lang}
+      onBackToLesson={props.onBackToLesson}
+      onLessonCompleted={props.onLessonCompleted}
+      onNextLesson={props.onNextLesson}
+    />
+  ) : (
+    <CodeExercisePage {...props} />
+  );
