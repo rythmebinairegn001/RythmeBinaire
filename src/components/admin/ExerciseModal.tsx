@@ -11,6 +11,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { DetailedLesson } from '../../data/lessonsData';
+import { QuizEditor } from './QuizEditor';
+import { DEFAULT_PASS_PERCENT, QuizDraftQuestion, draftProblem, draftToQuiz, emptyDraftQuestion, parseQuiz, quizToDraft } from '../../data/quiz';
 import { ExerciseTest, PreferredLanguage } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
 import {
@@ -59,10 +61,32 @@ export const ExerciseModal: React.FC<Props> = ({
   // Tests list
   const [tests, setTests] = useState<ExerciseTest[]>([]);
 
+  // Type d'exercice : atelier de code ou quiz (questions à choix multiples)
+  const [kind, setKind] = useState<'code' | 'quiz'>('code');
+  const [quizFr, setQuizFr] = useState<QuizDraftQuestion[]>([]);
+  const [quizEn, setQuizEn] = useState<QuizDraftQuestion[]>([]);
+  const [passPercent, setPassPercent] = useState<number>(DEFAULT_PASS_PERCENT);
+
   useEffect(() => {
     if (lesson && isOpen) {
       const ex = lesson.exercise;
-      if (ex) {
+      setKind('code');
+      setQuizFr([]);
+      setQuizEn([]);
+      setPassPercent(DEFAULT_PASS_PERCENT);
+      if (ex && ex.type === 'quiz') {
+        const fr = parseQuiz(ex.instructions?.fr);
+        setHasExercise(true);
+        setKind('quiz');
+        setQuizFr(fr ? quizToDraft(fr) : [emptyDraftQuestion()]);
+        setQuizEn(quizToDraft(parseQuiz(ex.instructions?.en)));
+        setPassPercent(fr?.pass_percent ?? DEFAULT_PASS_PERCENT);
+        setLanguage('quiz');
+        setStarterCode('');
+        setInstructionsFr('');
+        setInstructionsEn('');
+        setTests([]);
+      } else if (ex) {
         setHasExercise(true);
         setLanguage(ex.language || 'python');
         setStarterCode(ex.starter_code || '');
@@ -147,6 +171,39 @@ export const ExerciseModal: React.FC<Props> = ({
         return;
       }
 
+      if (kind === 'quiz') {
+        const problem = draftProblem(quizFr);
+        if (problem) {
+          setErrorMsg(`Quiz en français : ${problem}.`);
+          setActiveTab('fr');
+          setSaving(false);
+          return;
+        }
+        const hasEn = quizEn.length > 0;
+        const problemEn = hasEn ? draftProblem(quizEn) : null;
+        if (problemEn) {
+          setErrorMsg(`Quiz en anglais : ${problemEn}. (Vide toutes les questions anglaises pour n’avoir que la version française.)`);
+          setActiveTab('en');
+          setSaving(false);
+          return;
+        }
+        const quizExerciseId = lesson.exercise?.id || `ex-${lesson.id}`;
+        const quizData: DetailedLesson['exercise'] = {
+          id: quizExerciseId,
+          type: 'quiz',
+          language: 'quiz',
+          starter_code: '',
+          instructions: {
+            fr: JSON.stringify(draftToQuiz(quizFr, passPercent)),
+            en: hasEn ? JSON.stringify(draftToQuiz(quizEn, passPercent)) : undefined,
+          },
+        };
+        await saveExerciseTestsAdmin(quizExerciseId, []);
+        await onSaveExercise(quizData, []);
+        onClose();
+        return;
+      }
+
       if (!instructionsFr.trim()) {
         setErrorMsg('Les instructions en français sont obligatoires.');
         setActiveTab('fr');
@@ -157,7 +214,7 @@ export const ExerciseModal: React.FC<Props> = ({
       const exerciseId = lesson.exercise?.id || `ex-${lesson.id}`;
       const exerciseData: DetailedLesson['exercise'] = {
         id: exerciseId,
-        type: lesson.exercise?.type === 'quiz' ? 'quiz' : 'code_sandbox',
+        type: 'code_sandbox',
         language,
         starter_code: starterCode,
         instructions: {
@@ -259,7 +316,46 @@ export const ExerciseModal: React.FC<Props> = ({
 
           {hasExercise && (
             <>
+              <div className="p-4 rounded-2xl bg-[var(--color-bg-app)] border border-[var(--color-card-border)] flex flex-wrap items-center gap-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Type d’exercice</span>
+                <div className="flex gap-2" role="radiogroup" aria-label="Type d’exercice">
+                  {([['code', 'Atelier de code'], ['quiz', 'Quiz (questions à choix)']] as const).map(([k, label]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      role="radio"
+                      aria-checked={kind === k}
+                      id={`btn-kind-${k}`}
+                      onClick={() => {
+                        setKind(k);
+                        if (k === 'quiz' && quizFr.length === 0) setQuizFr([emptyDraftQuestion()]);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${kind === k ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-[var(--color-card-bg)] border border-[var(--color-card-border)] text-[var(--color-text-muted)]'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {kind === 'quiz' && (
+                  <label className="flex items-center gap-2 text-xs font-semibold ml-auto">
+                    Réussite à
+                    <input
+                      type="number"
+                      min={10}
+                      max={100}
+                      step={5}
+                      value={passPercent}
+                      onChange={(e) => setPassPercent(Math.min(100, Math.max(10, Number(e.target.value) || DEFAULT_PASS_PERCENT)))}
+                      className="w-16 px-2 py-1 rounded-lg bg-[var(--color-card-bg)] border border-[var(--color-card-border)] text-xs"
+                      aria-label="Pourcentage de réussite"
+                    />
+                    %
+                  </label>
+                )}
+              </div>
+
               {/* Technical Config: Language & Starter Code */}
+              {kind === 'code' && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-[var(--color-bg-app)] border border-[var(--color-card-border)]">
                 <div className="space-y-1.5 sm:col-span-1">
                   <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
@@ -291,6 +387,7 @@ export const ExerciseModal: React.FC<Props> = ({
                   />
                 </div>
               </div>
+              )}
 
               {/* Instructions and Static Hints Tabs (FR / EN) */}
               <div className="space-y-3">
@@ -319,15 +416,31 @@ export const ExerciseModal: React.FC<Props> = ({
                       }`}
                     >
                       <span>🇬🇧 English</span>
-                      {!instructionsEn.trim() && (
+                      {(kind === 'quiz' ? quizEn.length === 0 : !instructionsEn.trim()) && (
                         <span className="w-2 h-2 rounded-full bg-amber-400" title="Non traduit" />
                       )}
                     </button>
                   </div>
                 </div>
 
+                {kind === 'quiz' && activeTab === 'fr' && <QuizEditor value={quizFr} onChange={setQuizFr} accent="amber" />}
+                {kind === 'quiz' && activeTab === 'en' && (
+                  <div className="space-y-3">
+                    {quizEn.length === 0 && quizFr.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setQuizEn(quizFr.map((q) => ({ ...q, options: [...q.options], answer: [...q.answer] })))}
+                        className="px-3 py-1.5 rounded-xl border border-[var(--color-card-border)] text-xs font-semibold"
+                      >
+                        Copier les questions françaises pour les traduire
+                      </button>
+                    )}
+                    <QuizEditor value={quizEn} onChange={setQuizEn} accent="purple" />
+                  </div>
+                )}
+
                 {/* FR TAB */}
-                {activeTab === 'fr' && (
+                {kind === 'code' && activeTab === 'fr' && (
                   <div className="space-y-4 animate-in fade-in duration-100">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-[var(--color-text-main)]">
@@ -377,7 +490,7 @@ export const ExerciseModal: React.FC<Props> = ({
                 )}
 
                 {/* EN TAB */}
-                {activeTab === 'en' && (
+                {kind === 'code' && activeTab === 'en' && (
                   <div className="space-y-4 animate-in fade-in duration-100">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-[var(--color-text-main)]">
@@ -427,6 +540,7 @@ export const ExerciseModal: React.FC<Props> = ({
               </div>
 
               {/* Test Cases (exercise_tests) */}
+              {kind === 'code' && (
               <div className="space-y-3 pt-3 border-t border-[var(--color-card-border)]">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
@@ -529,6 +643,7 @@ export const ExerciseModal: React.FC<Props> = ({
                   ))}
                 </div>
               </div>
+              )}
             </>
           )}
 

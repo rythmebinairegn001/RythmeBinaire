@@ -79,3 +79,56 @@ export function scoreQuiz(quiz: QuizDefinition, picks: number[][]): QuizScore {
   const percent = total === 0 ? 0 : Math.round((correct / total) * 100);
   return { correct, total, percent, passed: percent >= (quiz.pass_percent ?? DEFAULT_PASS_PERCENT) };
 }
+
+// ---------------------------------------------------------------- Édition (Administration)
+
+/** Question en cours d'édition : champs toujours présents, réponses toujours sous forme de liste. */
+export interface QuizDraftQuestion {
+  q: string;
+  options: string[];
+  answer: number[];
+  explain: string;
+}
+
+export function emptyDraftQuestion(): QuizDraftQuestion {
+  return { q: '', options: ['', '', ''], answer: [0], explain: '' };
+}
+
+export function quizToDraft(def: QuizDefinition | null): QuizDraftQuestion[] {
+  if (!def) return [];
+  return def.questions.map((q) => ({ q: q.q, options: [...q.options], answer: correctSet(q), explain: q.explain || '' }));
+}
+
+/** Problème bloquant d'un brouillon (message lisible), ou null s'il est publiable. */
+export function draftProblem(draft: QuizDraftQuestion[]): string | null {
+  if (draft.length === 0) return 'ajoute au moins une question';
+  for (let i = 0; i < draft.length; i++) {
+    const d = draft[i];
+    const n = i + 1;
+    if (!d.q.trim()) return `question ${n} : l’énoncé est vide`;
+    const filled = d.options.filter((o) => o.trim());
+    if (filled.length < 2) return `question ${n} : au moins 2 réponses possibles`;
+    if (d.answer.length === 0) return `question ${n} : coche la bonne réponse`;
+    if (d.answer.some((a) => !d.options[a] || !d.options[a].trim())) return `question ${n} : la bonne réponse est vide`;
+  }
+  return null;
+}
+
+/** Transforme le brouillon en quiz enregistrable : retire les réponses vides en recalant les positions. */
+export function draftToQuiz(draft: QuizDraftQuestion[], passPercent?: number): QuizDefinition {
+  const questions: QuizQuestion[] = draft.map((d) => {
+    const keep: number[] = [];
+    d.options.forEach((o, i) => { if (o.trim()) keep.push(i); });
+    const answer = d.answer.filter((a) => keep.includes(a)).map((a) => keep.indexOf(a)).sort((a, b) => a - b);
+    const out: QuizQuestion = {
+      q: d.q.trim(),
+      options: keep.map((i) => d.options[i].trim()),
+      answer: answer.length === 1 ? answer[0] : answer,
+    };
+    if (d.explain.trim()) out.explain = d.explain.trim();
+    return out;
+  });
+  const def: QuizDefinition = { questions };
+  if (passPercent && passPercent !== DEFAULT_PASS_PERCENT) def.pass_percent = passPercent;
+  return def;
+}
