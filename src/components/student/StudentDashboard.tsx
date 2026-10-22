@@ -1,3 +1,4 @@
+import { trackInfo } from '../../lib/tracks';
 import React from 'react';
 import {
   GraduationCap,
@@ -245,7 +246,8 @@ export const StudentDashboard: React.FC<Props> = ({
             {enrolledCourses.map(({ course, progress }) => {
               if (!course) return null;
               const translation = course.translations[lang] || course.translations.fr;
-              const isCoder = course.track === 'coder';
+              const tr = trackInfo(course.track);
+              const TrIcon = tr.icon;
               const nextLesson = progress.nextLesson;
               const nextLessonTitle = nextLesson
                 ? (nextLesson.translations[lang]?.title || nextLesson.translations.fr.title)
@@ -262,14 +264,10 @@ export const StudentDashboard: React.FC<Props> = ({
                     {/* Track Badge & Level */}
                     <div className="flex items-center justify-between gap-2">
                       <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-                          isCoder
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200/80'
-                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
-                        }`}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${tr.badge}`}
                       >
-                        {isCoder ? <Code2 className="w-3.5 h-3.5" /> : <Globe2 className="w-3.5 h-3.5" />}
-                        <span>{isCoder ? 'Coder' : 'Culture Numérique'}</span>
+                        <TrIcon className="w-3.5 h-3.5" />
+                        <span>{lang === 'en' ? tr.en : tr.fr}</span>
                       </span>
 
                       <span className="text-xs font-semibold text-slate-500 capitalize">

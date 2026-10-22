@@ -1,6 +1,6 @@
 export type UserRole = 'eleve' | 'admin';
 export type PreferredLanguage = 'fr' | 'en';
-export type CourseTrack = 'coder' | 'culture_numerique';
+export type CourseTrack = 'coder' | 'programmation' | 'bureautique' | 'culture_numerique';
 export type CourseStatus = 'draft' | 'published';
 export type SubmissionStatus = 'pass' | 'fail' | 'error';
 

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, BookOpen, Clock, Layers, ArrowRight, Code2, Globe2 } from 'lucide-react';
+import { Search, Filter, BookOpen, Clock, Layers, ArrowRight } from 'lucide-react';
+import { TRACKS, trackInfo } from '../../lib/tracks';
 import { PublicCourseItem } from '../../data/coursesData';
 import { PreferredLanguage, CourseTrack } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
@@ -89,32 +90,23 @@ export const CourseCatalogPage: React.FC<Props> = ({
             >
               {t.catalog.allTracks}
             </button>
-            <button
-              id="filter-track-coder"
-              type="button"
-              onClick={() => setSelectedTrack('coder')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
-                selectedTrack === 'coder'
-                  ? 'bg-blue-600 text-white shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Code2 className="w-3.5 h-3.5" />
-              <span>{t.catalog.trackCoder}</span>
-            </button>
-            <button
-              id="filter-track-culture"
-              type="button"
-              onClick={() => setSelectedTrack('culture_numerique')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
-                selectedTrack === 'culture_numerique'
-                  ? 'bg-emerald-600 text-white shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Globe2 className="w-3.5 h-3.5" />
-              <span>{t.catalog.trackCulture}</span>
-            </button>
+            {TRACKS.map((tr) => {
+              const Icon = tr.icon;
+              return (
+                <button
+                  key={tr.id}
+                  id={`filter-track-${tr.id}`}
+                  type="button"
+                  onClick={() => setSelectedTrack(tr.id)}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
+                    selectedTrack === tr.id ? tr.pillActive : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{lang === 'en' ? tr.en : tr.fr}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -171,7 +163,8 @@ export const CourseCatalogPage: React.FC<Props> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCourses.map((course) => {
             const translation = course.translations[lang] || course.translations.fr;
-            const isCoder = course.track === 'coder';
+            const tr = trackInfo(course.track);
+            const TrIcon = tr.icon;
             const levelLabel =
               course.level === 'debutant'
                 ? t.catalog.levelDebutant
@@ -190,14 +183,10 @@ export const CourseCatalogPage: React.FC<Props> = ({
                   {/* Badges row */}
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-                        isCoder
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200/80'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
-                      }`}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${tr.badge}`}
                     >
-                      {isCoder ? <Code2 className="w-3.5 h-3.5" /> : <Globe2 className="w-3.5 h-3.5" />}
-                      <span>{isCoder ? t.catalog.trackCoder : t.catalog.trackCulture}</span>
+                      <TrIcon className="w-3.5 h-3.5" />
+                      <span>{lang === 'en' ? tr.en : tr.fr}</span>
                     </span>
 
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/60">

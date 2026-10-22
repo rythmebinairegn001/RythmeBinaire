@@ -1,3 +1,4 @@
+import { trackInfo } from '../../lib/tracks';
 import React from 'react';
 import { X, BookOpen, Clock, Layers, ShieldCheck, ArrowRight, Sparkles, CheckCircle2, Lock } from 'lucide-react';
 import { PublicCourseItem } from '../../data/coursesData';
@@ -30,7 +31,7 @@ export const CourseDetailModal: React.FC<Props> = ({
   if (!isOpen || !course) return null;
 
   const translation = course.translations[lang] || course.translations.fr;
-  const isCoder = course.track === 'coder';
+  const tr = trackInfo(course.track);
 
   const levelLabel =
     course.level === 'debutant'
@@ -55,13 +56,9 @@ export const CourseDetailModal: React.FC<Props> = ({
           <div className="space-y-2 pr-4">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                  isCoder
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                }`}
+                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${tr.badge}`}
               >
-                {isCoder ? t.catalog.trackCoder : t.catalog.trackCulture}
+                {lang === 'en' ? tr.en : tr.fr}
               </span>
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
                 {levelLabel}

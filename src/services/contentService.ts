@@ -456,7 +456,7 @@ export interface CourseContentFile {
   courseId: string;
   /** Si le cours n'existe pas encore, il est créé (en brouillon par défaut) avec ces informations. */
   course?: {
-    track: 'coder' | 'culture_numerique';
+    track: 'coder' | 'programmation' | 'bureautique' | 'culture_numerique';
     level: string;
     status?: 'draft' | 'published';
     estimated_hours?: number;

@@ -1,3 +1,4 @@
+import { TRACKS } from '../../lib/tracks';
 import React, { useState, useEffect } from 'react';
 import { X, Sparkles, AlertCircle, Check, Globe2, BookOpen, Clock } from 'lucide-react';
 import { PublicCourseItem } from '../../data/coursesData';
@@ -183,8 +184,9 @@ export const CourseModal: React.FC<Props> = ({
                 onChange={(e) => setTrack(e.target.value as CourseTrack)}
                 className="w-full px-3 py-2 rounded-xl bg-[var(--color-card-bg)] border border-[var(--color-card-border)] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-blue)]"
               >
-                <option value="coder">Coder</option>
-                <option value="culture_numerique">Culture Numérique</option>
+                {TRACKS.map((tr) => (
+                  <option key={tr.id} value={tr.id}>{tr.fr}</option>
+                ))}
               </select>
             </div>
 

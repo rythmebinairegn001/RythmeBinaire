@@ -1,3 +1,4 @@
+import { trackInfo } from '../../lib/tracks';
 import React, { useState } from 'react';
 import {
   ArrowLeft,
@@ -46,7 +47,8 @@ export const StudentCoursePage: React.FC<Props> = ({
 
   const translation = course.translations[lang] || course.translations.fr;
   const isEnrolled = !!progress;
-  const isCoder = course.track === 'coder';
+  const tr = trackInfo(course.track);
+  const TrIcon = tr.icon;
 
   const completedLessonIds = new Set(progress?.completedLessonIds || []);
   const rawModules = DETAILED_COURSE_MODULES[course.id] || [];
@@ -89,14 +91,10 @@ export const StudentCoursePage: React.FC<Props> = ({
           <div className="space-y-3 max-w-2xl">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-                  isCoder
-                    ? 'bg-blue-500/10 text-[var(--color-accent-blue)] border border-blue-500/20'
-                    : 'bg-emerald-500/10 text-[var(--color-accent-green)] border border-emerald-500/20'
-                }`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${tr.badgeTheme}`}
               >
-                {isCoder ? <Code2 className="w-3.5 h-3.5" /> : <Globe2 className="w-3.5 h-3.5" />}
-                <span>{isCoder ? 'Coder' : 'Culture Numérique'}</span>
+                <TrIcon className="w-3.5 h-3.5" />
+                <span>{lang === 'en' ? tr.en : tr.fr}</span>
               </span>
 
               <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--color-bg-app)] text-[var(--color-text-muted)] border border-[var(--color-card-border)] capitalize">

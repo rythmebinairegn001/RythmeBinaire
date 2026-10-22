@@ -21,7 +21,7 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
-    CREATE TYPE course_track AS ENUM ('coder', 'culture_numerique');
+    CREATE TYPE course_track AS ENUM ('coder', 'programmation', 'bureautique', 'culture_numerique');
 EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;

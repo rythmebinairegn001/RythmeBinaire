@@ -1,3 +1,5 @@
+import { TRACKS, trackInfo } from '../../lib/tracks';
+import type { CourseTrack } from '../../types/database';
 import React, { useState, useEffect } from 'react';
 import {
   Shield,
@@ -72,7 +74,7 @@ export const AdminDashboard: React.FC<Props> = ({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
-  const [trackFilter, setTrackFilter] = useState<'all' | 'coder' | 'culture_numerique'>('all');
+  const [trackFilter, setTrackFilter] = useState<'all' | CourseTrack>('all');
 
   // Modals & Sub-views
   const [courseModalOpen, setCourseModalOpen] = useState(false);
@@ -388,8 +390,9 @@ export const AdminDashboard: React.FC<Props> = ({
                 className="px-3.5 py-2.5 rounded-2xl bg-[var(--color-card-bg)] border border-[var(--color-card-border)] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 text-[var(--color-text-main)]"
               >
                 <option value="all">{t.admin.allTracks}</option>
-                <option value="coder">Coder</option>
-                <option value="culture_numerique">Culture Numérique</option>
+                {TRACKS.map((tr) => (
+                  <option key={tr.id} value={tr.id}>{tr.fr}</option>
+                ))}
               </select>
             </div>
 
@@ -495,7 +498,7 @@ export const AdminDashboard: React.FC<Props> = ({
 
                         {/* Track Badge */}
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                          {course.track === 'coder' ? 'Coder' : 'Culture Numérique'}
+                          {trackInfo(course.track).fr}
                         </span>
 
                         {/* Level */}

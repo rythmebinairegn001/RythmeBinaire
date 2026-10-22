@@ -1,3 +1,4 @@
+import { trackInfo } from '../../lib/tracks';
 import React from 'react';
 import {
   Code2,
@@ -337,7 +338,7 @@ export const HomePage: React.FC<Props> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {featuredCourses.slice(0, 3).map((course) => {
             const translation = course.translations[lang] || course.translations.fr;
-            const isCoder = course.track === 'coder';
+            const tr = trackInfo(course.track);
             return (
               <div
                 key={course.id}
@@ -346,13 +347,9 @@ export const HomePage: React.FC<Props> = ({
               >
                 <div className="space-y-3">
                   <span
-                    className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      isCoder
-                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    }`}
+                    className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${tr.badge}`}
                   >
-                    {isCoder ? t.catalog.trackCoder : t.catalog.trackCulture}
+                    {lang === 'en' ? tr.en : tr.fr}
                   </span>
                   <h3 className="font-display text-base font-bold text-slate-900 line-clamp-2">
                     {translation.title}

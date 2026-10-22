@@ -1,3 +1,4 @@
+import { trackInfo } from '../../lib/tracks';
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
@@ -298,7 +299,7 @@ export const ModulesManager: React.FC<Props> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                {course.track}
+                {trackInfo(course.track).fr}
               </span>
               <h1 className="font-display text-lg sm:text-xl font-bold tracking-tight text-[var(--color-text-main)]">
                 {course.translations[lang]?.title || course.translations.fr.title}
