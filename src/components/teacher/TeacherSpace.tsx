@@ -1,3 +1,7 @@
+import { ClassQuizPanel } from '../student/QuizHistory';
+import { InactiveReminder } from './InactiveReminder';
+import { displayContact } from '../../lib/phone';
+import { ChatEntry } from '../student/ClassChat';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Code2, Flag, Copy, Download, Lock, LockOpen, MessageSquare, Plus, Trash2, UserMinus, Users } from 'lucide-react';
 import { PreferredLanguage, UserProfile } from '../../types/database';
@@ -111,7 +115,7 @@ export const OverviewTable: React.FC<{
                   {r.isChild ? (
                     <div className="text-[11px] text-sky-700 font-semibold">{fr ? 'Compte enfant (suivi avec l’accord du parent)' : 'Child account (followed with parental consent)'}</div>
                   ) : (
-                    <div className="text-[11px] text-slate-500">{r.email}</div>
+                    <div className="text-[11px] text-slate-500">{displayContact(r.email)}</div>
                   )}
                 </td>
                 <td className="py-2 pr-3 tabular-nums">{r.lessonsDone}</td>
@@ -290,6 +294,8 @@ export const TeacherSpace: React.FC<Props> = ({ user, lang, courses, onBack }) =
           </button>
         </form>
       )}
+
+      <ChatEntry lang={lang} />
 
       {loading && <p className="text-sm text-slate-500">{fr ? 'Chargement…' : 'Loading…'}</p>}
       {!loading && !loadError && classes.length === 0 && <p className="text-sm text-slate-500">{fr ? "Tu n'as pas encore de classe." : "You don't have any class yet."}</p>}
@@ -472,6 +478,9 @@ const ClassCard: React.FC<{
               }}
             />
           )}
+
+          <InactiveReminder overview={overview} className={cls.name} whatsappUrl={cls.whatsapp_url || null} lang={lang} />
+          <ClassQuizPanel students={students.map((st) => ({ id: st.id, name: st.full_name || st.email || '—' }))} lang={lang} />
 
           {reviewing && (
             <SubmissionsView

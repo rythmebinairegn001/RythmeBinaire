@@ -4,6 +4,10 @@
  * - Python : Pyodide (Python compilé pour le navigateur). ~10 Mo au premier chargement,
  *   ensuite gardé en cache par le navigateur (donc léger pour les connexions lentes).
  * - JavaScript : exécuté dans un Web Worker isolé.
+ * - SQL : SQLite compilé pour le navigateur (sql.js, ~1 Mo, chargé seulement dans les exercices SQL).
+ *   Chaque test fournit en « entrée » le script qui crée la base d'exemple ; une ligne « -- CHECK »
+ *   peut suivre : ce qui vient après est une requête de vérification exécutée APRÈS le code de l'élève
+ *   (utile pour corriger INSERT / UPDATE / DELETE). Sans CHECK, on compare le résultat de la dernière requête.
  *
  * Le code tourne dans un Worker : il ne peut pas toucher à la page, et on peut l'arrêter
  * de force en cas de boucle infinie (délai maximum ci-dessous).
@@ -12,6 +16,8 @@ import { ExerciseTest } from '../types/database';
 import { getTestsForExercise } from '../data/exerciseTestsData';
 import type { ExecuteRequest, ExecuteResponse, FailedTestDetail } from './exerciseService';
 
+const SQLJS_VERSION = '1.10.3';
+export const SQLJS_BASE = `https://cdn.jsdelivr.net/npm/sql.js@${SQLJS_VERSION}/dist/`;
 const PYODIDE_VERSION = '0.26.4';
 export const PYODIDE_BASE = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 const EXEC_TIMEOUT_MS = 10_000;
@@ -43,6 +49,42 @@ async function runPy(pyodide, code, input) {
 }
 `;
 
+
+/** Code SQL exécuté dans le worker (aussi utilisé tel quel par les tests). `SQLlib` = résultat de initSqlJs(). */
+export const SQL_RUN_SOURCE = `
+function fmtCell(v) {
+  if (v === null || v === undefined) return 'NULL';
+  if (v instanceof Uint8Array) return '(blob)';
+  return String(v);
+}
+function lastRows(results) {
+  for (var i = results.length - 1; i >= 0; i--) {
+    if (results[i].values.length) return results[i].values.map(function (r) { return r.map(fmtCell).join(' | '); }).join('\\n');
+  }
+  return '';
+}
+function runSql(SQLlib, code, input) {
+  var setup = '';
+  var check = '';
+  if (input != null) {
+    var parts = String(input).split(/^[ \\t]*--[ \\t]*CHECK[ \\t]*$/m);
+    setup = parts[0];
+    check = parts.length > 1 ? parts.slice(1).join('\\n') : '';
+  }
+  var db = new SQLlib.Database();
+  try {
+    if (setup.trim()) db.exec(setup);
+    var res = db.exec(code);
+    var out = check.trim() ? lastRows(db.exec(check)) : lastRows(res);
+    return { ok: true, stdout: out };
+  } catch (e) {
+    return { ok: false, stdout: '', error: 'Erreur SQL : ' + String((e && e.message) || e) };
+  } finally {
+    db.close();
+  }
+}
+`;
+
 const JS_RUN_SOURCE = `
 async function runJs(code) {
   var out = [];
@@ -70,6 +112,17 @@ onmessage = async function (ev) {
 };
 `;
 
+const SQL_WORKER_SOURCE = `
+importScripts('${SQLJS_BASE}sql-wasm.js');
+${SQL_RUN_SOURCE}
+var ready = initSqlJs({ locateFile: function (f) { return '${SQLJS_BASE}' + f; } }).then(function (S) { postMessage({ type: 'ready' }); return S; })
+  .catch(function (e) { postMessage({ type: 'loaderror', message: String((e && e.message) || e) }); throw e; });
+onmessage = async function (ev) {
+  var S = await ready;
+  postMessage({ type: 'result', id: ev.data.id, result: runSql(S, ev.data.code, ev.data.input) });
+};
+`;
+
 const JS_WORKER_SOURCE = `
 ${JS_RUN_SOURCE}
 postMessage({ type: 'ready' });
@@ -93,8 +146,15 @@ interface WorkerHandle {
 const handles: Record<string, WorkerHandle | undefined> = {};
 let nextId = 1;
 
-function startWorker(kind: 'python' | 'javascript'): WorkerHandle {
-  const src = kind === 'python' ? PY_WORKER_SOURCE : JS_WORKER_SOURCE;
+type RunnerKind = 'python' | 'javascript' | 'sql';
+
+function runnerKind(language: string): RunnerKind | null {
+  const l = language.toLowerCase();
+  return l === 'python' || l === 'javascript' || l === 'sql' ? l : null;
+}
+
+function startWorker(kind: RunnerKind): WorkerHandle {
+  const src = kind === 'python' ? PY_WORKER_SOURCE : kind === 'sql' ? SQL_WORKER_SOURCE : JS_WORKER_SOURCE;
   const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
   const worker = new Worker(url);
   const ready = new Promise<void>((resolve, reject) => {
@@ -118,7 +178,7 @@ function startWorker(kind: 'python' | 'javascript'): WorkerHandle {
   return { worker, ready };
 }
 
-function getHandle(kind: 'python' | 'javascript'): WorkerHandle {
+function getHandle(kind: RunnerKind): WorkerHandle {
   let h = handles[kind];
   if (!h) {
     h = startWorker(kind);
@@ -127,14 +187,14 @@ function getHandle(kind: 'python' | 'javascript'): WorkerHandle {
   return h;
 }
 
-function resetHandle(kind: 'python' | 'javascript') {
+function resetHandle(kind: RunnerKind) {
   handles[kind]?.worker.terminate();
   handles[kind] = undefined;
 }
 
 /** Lance le chargement de Python en arrière-plan (pendant que l'élève lit la consigne). */
 export function preloadRunner(language: string): void {
-  const kind = language.toLowerCase() === 'python' ? 'python' : language.toLowerCase() === 'javascript' ? 'javascript' : null;
+  const kind = runnerKind(language);
   if (!kind || typeof Worker === 'undefined') return;
   try {
     getHandle(kind);
@@ -142,11 +202,10 @@ export function preloadRunner(language: string): void {
 }
 
 export function isRunnerSupported(language: string): boolean {
-  const l = language.toLowerCase();
-  return (l === 'python' || l === 'javascript') && typeof Worker !== 'undefined';
+  return runnerKind(language) !== null && typeof Worker !== 'undefined';
 }
 
-async function runOnce(kind: 'python' | 'javascript', code: string, input: string | null): Promise<RunResult> {
+async function runOnce(kind: RunnerKind, code: string, input: string | null): Promise<RunResult> {
   const h = getHandle(kind);
   try {
     await h.ready;
@@ -226,7 +285,7 @@ export function gradeRuns(
  */
 export async function runLocally(req: ExecuteRequest): Promise<ExecuteResponse | null> {
   if (!isRunnerSupported(req.language)) return null;
-  const kind = req.language.toLowerCase() as 'python' | 'javascript';
+  const kind = runnerKind(req.language) as RunnerKind;
   const tests = req.tests.length > 0 ? req.tests : getTestsForExercise(req.exercise_id);
   const t0 = performance.now();
 

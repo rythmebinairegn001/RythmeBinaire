@@ -1,3 +1,4 @@
+import { displayContact } from '../../lib/phone';
 import React, { useState, useEffect } from 'react';
 import {
   Users,
@@ -159,7 +160,7 @@ export const StudentsList: React.FC<Props> = ({ lang }) => {
                         </span>
                       </div>
                       <p className="text-xs text-[var(--color-text-muted)] font-mono">
-                        {student.email}
+                        {displayContact(student.email)}
                       </p>
                     </div>
                   </div>

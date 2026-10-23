@@ -17,7 +17,7 @@ export const CertificateCard: React.FC<{
       <h2 className="font-display text-3xl sm:text-4xl font-bold text-slate-900">{fr ? 'Certificat de réussite' : 'Certificate of completion'}</h2>
       <p className="text-sm text-slate-600">{fr ? 'décerné à' : 'awarded to'}</p>
       <p className="font-display text-2xl sm:text-3xl font-bold text-emerald-800 break-words">{cert.student_name}</p>
-      <p className="text-sm text-slate-600">{fr ? 'pour avoir terminé toutes les leçons du cours' : 'for completing all the lessons of the course'}</p>
+      <p className="text-sm text-slate-600">{fr ? 'pour avoir terminé avec succès' : 'for successfully completing'}</p>
       <p className="font-display text-xl sm:text-2xl font-semibold text-slate-900">{title}</p>
       <p className="text-sm text-slate-600">{date}</p>
       <div className="pt-4 border-t border-slate-200 text-xs text-slate-500 space-y-1">

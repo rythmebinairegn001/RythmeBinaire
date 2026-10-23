@@ -21,6 +21,7 @@ export const CodeEditor: React.FC<Props> = ({
   // Determine extensions based on language
   const extensions = React.useMemo(() => {
     const langLower = language.toLowerCase();
+    if (langLower === 'sql') return []; // pas de coloration dédiée : éditeur simple
     if (langLower.includes('python') || langLower === 'py') {
       return [python()];
     }

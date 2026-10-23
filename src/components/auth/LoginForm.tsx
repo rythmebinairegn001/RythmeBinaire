@@ -24,7 +24,7 @@ function friendlyAuthError(raw: string, lang: PreferredLanguage): string {
   }
   if (/invalid login credentials/i.test(raw)) {
     return lang === 'fr'
-      ? "E-mail (ou identifiant) ou mot de passe incorrect. Vérifiez vos informations, ou créez un compte si vous n'en avez pas encore."
+      ? "E-mail (ou identifiant, ou numéro avec +indicatif) ou mot de passe incorrect. Vérifiez vos informations, ou créez un compte si vous n'en avez pas encore."
       : "Incorrect email (or username) or password. Check your details, or create an account if you don't have one yet.";
   }
   if (/banned/i.test(raw)) {
@@ -52,6 +52,11 @@ export const LoginForm: React.FC<Props> = ({ lang, onNavigate, onLoginSuccess, o
 
     if (!email.trim()) {
       setErrorMsg(t.auth.emailRequired);
+      return;
+    }
+
+    if (/^\d[\d\s.-]{7,}$/.test(email.trim())) {
+      setErrorMsg(lang === 'fr' ? 'Pour te connecter avec ton numéro, écris-le avec le + et l’indicatif du pays, par exemple +224 627 99 86 79.' : 'To sign in with your number, write it with + and the country code, for example +224 627 99 86 79.');
       return;
     }
 
@@ -149,7 +154,7 @@ export const LoginForm: React.FC<Props> = ({ lang, onNavigate, onLoginSuccess, o
               htmlFor="login-email-input"
               className="block text-xs font-semibold text-zinc-700 mb-1.5"
             >
-              {lang === 'fr' ? 'E-mail ou identifiant' : 'Email or username'}
+              {lang === 'fr' ? 'E-mail, identifiant ou téléphone (+224…)' : 'Email, username or phone (+224…)'}
             </label>
             <div className="relative">
               <input

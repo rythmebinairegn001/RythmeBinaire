@@ -12,6 +12,7 @@ const ASSETS = 'rb-assets-' + VERSION;
 const PYODIDE = 'rb-pyodide-' + VERSION;
 const KEEP = [PAGES, ASSETS, PYODIDE];
 const PYODIDE_PREFIX = 'https://cdn.jsdelivr.net/pyodide/';
+const SQLJS_PREFIX = 'https://cdn.jsdelivr.net/npm/sql.js@'; // moteur SQL (≈ 1 Mo), mis en cache comme Python
 const MAX_ASSETS = 80;
 const NETWORK_TIMEOUT_MS = 4000;
 
@@ -85,7 +86,7 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  if (url.href.startsWith(PYODIDE_PREFIX)) {
+  if (url.href.startsWith(PYODIDE_PREFIX) || url.href.startsWith(SQLJS_PREFIX)) {
     event.respondWith(cacheFirst(req, PYODIDE, 0));
     return;
   }

@@ -4,6 +4,7 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { trackEvent } from '../../lib/analytics';
 import { PreferredLanguage } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
+import { MethodToggle, PhoneRegisterForm } from './PhoneAuth';
 
 interface Props {
   lang: PreferredLanguage;
@@ -24,6 +25,7 @@ export const RegisterForm: React.FC<Props> = ({ lang, onNavigate, onRegisterSucc
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [method, setMethod] = useState<'email' | 'phone'>('email');
 
   const t = getTranslation(lang);
   const configured = isSupabaseConfigured();
@@ -368,6 +370,11 @@ export const RegisterForm: React.FC<Props> = ({ lang, onNavigate, onRegisterSucc
           </div>
         )}
 
+        <MethodToggle lang={lang} value={method} onChange={(v) => { setMethod(v); setErrorMsg(null); }} />
+
+        {method === 'phone' ? (
+          <PhoneRegisterForm lang={lang} onDone={goAuthenticated} onGoLogin={() => onNavigate('login')} />
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-3.5">
           {/* Full Name */}
           <div>
@@ -532,6 +539,7 @@ export const RegisterForm: React.FC<Props> = ({ lang, onNavigate, onRegisterSucc
             </button>
           </div>
         </form>
+        )}
 
         <div className="mt-6 pt-5 border-t border-zinc-100 text-center space-y-3">
           <p className="text-xs text-zinc-500">

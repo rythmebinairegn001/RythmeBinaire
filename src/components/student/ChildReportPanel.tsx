@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { PreferredLanguage } from '../../types/database';
+import { QuizHistoryPanel } from './QuizHistory';
 import { ChildReport, loadChildReport, reportToText, whatsappLink } from '../../services/parentReportService';
 
 const STATE: Record<ChildReport['activity'], { fr: string; en: string; cls: string }> = {
@@ -79,5 +80,12 @@ export const ChildReportPanel: React.FC<{ childId: string; name: string; titles:
   }, [childId]);
   if (error) return <p className="text-xs text-amber-800">{lang === 'fr' ? 'Rapport indisponible pour le moment.' : 'Report unavailable right now.'}</p>;
   if (!report) return <p className="text-xs text-slate-500">…</p>;
-  return <ChildReportView name={name} report={report} titles={titles} lang={lang} />;
+  return (
+    <div className="space-y-4">
+      <ChildReportView name={name} report={report} titles={titles} lang={lang} />
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <QuizHistoryPanel userId={childId} lang={lang} title={lang === 'fr' ? `Quiz de ${name}` : `${name}'s quizzes`} />
+      </div>
+    </div>
+  );
 };

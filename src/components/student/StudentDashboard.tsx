@@ -1,3 +1,4 @@
+import { displayContact } from '../../lib/phone';
 import { trackInfo } from '../../lib/tracks';
 import React from 'react';
 import {
@@ -20,7 +21,11 @@ import { StudentCourseProgress } from '../../services/studentService';
 import { DetailedLesson } from '../../data/lessonsData';
 import { ProgressionPanel } from './ProgressionPanel';
 import { ClassPanel } from './ClassPanel';
+import { MyQuizzesCard } from './QuizHistory';
+import { ReviewCard } from './QuizReview';
+import { ChatEntry } from './ClassChat';
 import { CertificatePanel } from './CertificatePanel';
+import { PathsSection } from './PathsSection';
 import { TutoringPanel } from './TutoringPanel';
 import { NotificationsPanel } from './NotificationsPanel';
 import { OfflinePanel } from './OfflinePanel';
@@ -88,7 +93,7 @@ export const StudentDashboard: React.FC<Props> = ({
                 <span>{t.student.roleBadge}</span>
               </span>
               <span className="text-xs text-slate-500 font-medium">
-                • {user.email}
+                • {displayContact(user.email)}
               </span>
             </div>
 
@@ -187,8 +192,23 @@ export const StudentDashboard: React.FC<Props> = ({
         completedCourseIds={enrollmentsProgress.filter((e) => e.totalLessonsCount > 0 && e.progressPercent >= 100).map((e) => e.courseId)}
       />
 
+      {/* 1b2a. Parcours guidés */}
+      <PathsSection
+        lang={lang}
+        courses={courses}
+        user={user}
+        percentByCourse={Object.fromEntries(enrollmentsProgress.map((e) => [e.courseId, e.progressPercent]))}
+        onOpenCourse={onOpenCourse}
+      />
+
+      {/* 1b2b. Historique de mes quiz */}
+      <ReviewCard userId={user.id} lang={lang} />
+      <MyQuizzesCard userId={user.id} lang={lang} />
+
       {/* 1b3. Aide d'un professeur (visio ou question écrite) — caché pour un compte enfant */}
       <TutoringPanel userId={user.id} lang={lang} hidden={isChildAccount} />
+
+      <ChatEntry lang={lang} hidden={isChildAccount} />
 
       {/* 1c. Ma classe (code du professeur, messages) — caché pour un compte enfant */}
       <ClassPanel userId={user.id} lang={lang} hidden={isChildAccount} />

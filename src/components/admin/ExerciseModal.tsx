@@ -369,6 +369,7 @@ export const ExerciseModal: React.FC<Props> = ({
                   >
                     <option value="python">Python 3</option>
                     <option value="javascript">JavaScript (Node / ES6)</option>
+                    <option value="sql">SQL (SQLite, corrigé dans le navigateur)</option>
                     <option value="html_css">HTML / CSS / JS</option>
                   </select>
                 </div>

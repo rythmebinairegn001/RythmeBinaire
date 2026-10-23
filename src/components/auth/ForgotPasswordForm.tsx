@@ -3,6 +3,7 @@ import { Mail, KeyRound, AlertCircle, ArrowLeft, ArrowRight, CheckCircle2 } from
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { PreferredLanguage } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
+import { MethodToggle, PhoneRecoverForm } from './PhoneAuth';
 
 interface Props {
   lang: PreferredLanguage;
@@ -14,6 +15,7 @@ export const ForgotPasswordForm: React.FC<Props> = ({ lang, onNavigate }) => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [method, setMethod] = useState<'email' | 'phone'>('email');
 
   const t = getTranslation(lang);
   const configured = isSupabaseConfigured();
@@ -93,6 +95,11 @@ export const ForgotPasswordForm: React.FC<Props> = ({ lang, onNavigate }) => {
           </div>
         )}
 
+        <MethodToggle lang={lang} value={method} onChange={(v) => { setMethod(v); setErrorMsg(null); setSuccessMsg(null); }} />
+
+        {method === 'phone' ? (
+          <PhoneRecoverForm lang={lang} onDone={() => onNavigate('login')} />
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label
@@ -132,6 +139,7 @@ export const ForgotPasswordForm: React.FC<Props> = ({ lang, onNavigate }) => {
             )}
           </button>
         </form>
+        )}
 
         <div className="mt-8 pt-6 border-t border-zinc-100 text-center">
           <button

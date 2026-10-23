@@ -4,6 +4,7 @@ import { DetailedLesson } from '../../data/lessonsData';
 import { PublicCourseItem } from '../../data/coursesData';
 import { PreferredLanguage } from '../../types/database';
 import { DEFAULT_PASS_PERCENT, correctSet, isQuestionCorrect, parseQuiz, scoreQuiz } from '../../data/quiz';
+import { recordQuizAttempt } from '../../services/quizAttemptService';
 
 interface Props {
   course: PublicCourseItem;
@@ -94,6 +95,17 @@ export const QuizExercise: React.FC<Props> = ({ course, lesson, lang, onBackToLe
     if (missing > 0) return;
     const s = scoreQuiz(quiz, picks);
     setChecked(true);
+    // Historique pour l'élève, le professeur et le parent (silencieux en cas de souci)
+    void recordQuizAttempt({
+      courseId: course.id,
+      lessonId: lesson.id,
+      courseTitle,
+      lessonTitle,
+      score: s.correct,
+      total: s.total,
+      passed: s.passed,
+      wrong: quiz.questions.flatMap((q, i) => (isQuestionCorrect(q, picks[i] || []) ? [] : [{ i, q: q.q }])),
+    });
     if (s.passed && onLessonCompleted) onLessonCompleted(course.id, lesson.id);
   };
 

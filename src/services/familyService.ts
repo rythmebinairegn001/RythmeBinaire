@@ -9,6 +9,8 @@ import { supabase, isSupabaseConfigured, getSupabaseConfig } from '../lib/supaba
  * Le navigateur ne peut que LIRE les liens (voir supabase/enfants.sql).
  */
 
+import { isPhoneLogin, normalizePhone, phoneToEmail } from '../lib/phone';
+
 export const USERNAME_RE = /^[a-z0-9][a-z0-9_.-]{2,19}$/;
 export const MIN_PASSWORD = 8;
 
@@ -20,6 +22,10 @@ export const CHILD_EMAIL_DOMAIN =
 export function loginIdentifierToEmail(identifier: string, domain = CHILD_EMAIL_DOMAIN): string {
   const v = identifier.trim();
   if (v.includes('@')) return v;
+  if (isPhoneLogin(v)) {
+    const e164 = normalizePhone('', v);
+    if (e164) return phoneToEmail(e164);
+  }
   return `${v.toLowerCase()}@${domain}`;
 }
 

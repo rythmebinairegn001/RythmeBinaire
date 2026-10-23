@@ -638,7 +638,7 @@ const CodeExercisePage: React.FC<Props> = ({
               <div className="flex items-center gap-2">
                 <Terminal className="w-4 h-4 text-slate-500" />
                 <span className="text-xs font-bold text-[var(--color-text-main)] font-mono">
-                  main.{exercise.language === 'python' ? 'py' : 'js'}
+                  main.{exercise.language === 'python' ? 'py' : exercise.language === 'sql' ? 'sql' : 'js'}
                 </span>
               </div>
 

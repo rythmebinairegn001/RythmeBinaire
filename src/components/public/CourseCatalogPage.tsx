@@ -4,6 +4,7 @@ import { TRACKS, trackInfo } from '../../lib/tracks';
 import { PublicCourseItem } from '../../data/coursesData';
 import { PreferredLanguage, CourseTrack } from '../../types/database';
 import { getTranslation } from '../../lib/i18n';
+import { PathsSection } from '../student/PathsSection';
 
 interface Props {
   courses: PublicCourseItem[];
@@ -50,6 +51,8 @@ export const CourseCatalogPage: React.FC<Props> = ({
 
   return (
     <div id="course-catalog-page" className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
+      <PathsSection lang={lang} courses={courses} publicPage onOpenCourse={(id) => { const c = courses.find((x) => x.id === id); if (c) onSelectCourse(c); }} />
+
       {/* Catalog Header */}
       <div className="text-center max-w-3xl mx-auto space-y-3">
         <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
