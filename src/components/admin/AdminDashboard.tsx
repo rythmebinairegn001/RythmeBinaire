@@ -21,6 +21,7 @@ import {
   Building2,
   BarChart3,
   GraduationCap,
+  Route,
 } from 'lucide-react';
 import { PublicCourseItem } from '../../data/coursesData';
 import { PreferredLanguage, UserProfile } from '../../types/database';
@@ -350,20 +351,23 @@ export const AdminDashboard: React.FC<Props> = ({
           <BarChart3 className="w-4 h-4" />
           <span>{lang === 'fr' ? 'Statistiques' : 'Statistics'}</span>
         </button>
-      </div>
-
-      {isAdmin && (
-        <div className="-mt-2">
+        {isAdmin && (
           <button
             type="button"
             id="tab-admin-paths"
             onClick={() => setActiveTab('paths')}
-            className={`px-4 py-2 rounded-2xl text-xs font-bold transition ${activeTab === 'paths' ? 'bg-indigo-600 text-white' : 'bg-[var(--color-card-bg)] text-[var(--color-text-muted)] border border-[var(--color-card-border)]'}`}
+            className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition flex items-center gap-2 ${
+              activeTab === 'paths'
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'bg-[var(--color-card-bg)] text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] border border-[var(--color-card-border)]'
+            }`}
           >
-            {lang === 'fr' ? 'Parcours guidés' : 'Guided paths'}
+            <Route className="w-4 h-4" />
+            <span>{lang === 'fr' ? 'Parcours guidés' : 'Guided paths'}</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
+
 
       {/* TAB 1: COURSES MANAGEMENT */}
       {activeTab === 'courses' && (
