@@ -310,7 +310,7 @@ export function makeDeps(): Deps {
           const text = await runners[name]();
           if (text && text.trim()) return text;
         } catch (e) {
-          lastError = e; // on essaie le cerveau suivant
+          console.error(`[assistant-chat] ${name} a échoué:`, String((e as Error)?.message || e)); lastError = e; // on essaie le cerveau suivant
         }
       }
       throw lastError;
