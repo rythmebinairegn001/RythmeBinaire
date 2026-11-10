@@ -47,3 +47,20 @@ Puis Deployments > Redeploy.
 - L'élève ne peut pas sauter de niveau : le serveur compte ses indices.
 - Aux niveaux 1 à 3, tout code est supprimé de la réponse, même si l'IA en écrit.
 - Si l'IA est en panne, l'indice n'est pas compté.
+
+## Utiliser le même cerveau que Mansara AI (Gemini gratuit, Groq en secours)
+
+La fonction `tutor-hint` peut appeler trois cerveaux. Elle essaie dans l'ordre et passe au suivant si l'un échoue.
+
+Secrets à ajouter dans Supabase (Edge Functions > Secrets), selon ce que tu veux utiliser :
+- `GEMINI_API_KEY` : clé Gemini (gratuit, avec limites).
+- `GROQ_API_KEY` : clé Groq (secours).
+- `ANTHROPIC_API_KEY` : clé Claude (déjà prévu).
+- `TUTOR_PROVIDERS` (facultatif) : l'ordre d'essai. Défaut : `anthropic,gemini,groq`. Pour l'IA gratuite d'abord : `gemini,groq,anthropic`.
+- `TUTOR_MODEL_GEMINI` (défaut `gemini-2.5-flash`) et `TUTOR_MODEL_GROQ` (défaut `llama-3.3-70b-versatile`) : à changer si le fournisseur renomme ses modèles.
+
+Les règles ne changent pas, quel que soit le cerveau : niveau d'indice décidé par le serveur, aucun code montré aux niveaux 1 à 3, quotas par élève et plafond mensuel, IA coupée pour un enfant sans accord de l'adulte.
+
+Ensuite, redéployer : `npx supabase functions deploy tutor-hint --no-verify-jwt` (avec un jeton temporaire, à supprimer après).
+
+Attention vie privée : le code des élèves est envoyé au fournisseur choisi. Lis les conditions de l'offre gratuite de Gemini (utilisation des données) avant d'ouvrir le tuteur aux comptes enfants.

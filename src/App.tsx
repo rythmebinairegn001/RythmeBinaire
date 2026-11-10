@@ -1,3 +1,4 @@
+import { loadMyCompletions, computeStreak } from './services/progressionService';
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { UserProfile, PreferredLanguage, CourseTrack } from './types/database';
@@ -143,6 +144,8 @@ export default function App() {
   const [isChildAccount, setIsChildAccount] = useState<boolean | null>(null);
   // Droit « professeur » (donné par l'admin) : affiche le bouton Espace professeur
   const [isTeacher, setIsTeacher] = useState(false);
+  // Message court « série de N jours » affiché après une leçon terminée (disparaît seul)
+  const [streakToast, setStreakToast] = useState<number | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -479,6 +482,19 @@ export default function App() {
     trackEvent('course_start', courseId); // ignoré par la base si déjà compté
     if (done?.progressPercent >= 100) trackEvent('course_complete', courseId);
     await refreshEnrollmentsProgress(sessionUser.id);
+    // Série de jours : on la montre seulement quand cette leçon est la première du jour (la série vient de grandir).
+    try {
+      const comps = await loadMyCompletions(sessionUser.id);
+      const today = new Date().toISOString().slice(0, 10);
+      const doneToday = comps.filter((c) => c.completed_at.slice(0, 10) === today).length;
+      const streak = computeStreak(comps.map((c) => c.completed_at));
+      if (doneToday === 1 && streak.current >= 2) {
+        setStreakToast(streak.current);
+        window.setTimeout(() => setStreakToast(null), 5000);
+      }
+    } catch {
+      // la série est un bonus : on ne bloque jamais la validation de la leçon
+    }
   };
 
   const handleNavigate = (view: string, filter?: CourseTrack) => {
@@ -493,6 +509,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-app)] text-[var(--color-text-main)] flex flex-col font-sans antialiased transition-colors duration-200 selection:bg-[#BEF264] selection:text-[#070D1E]">
+      {streakToast !== null && (
+        <div role="status" aria-live="polite" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl bg-orange-500 text-white font-bold shadow-lg">
+          🔥 {lang === 'fr' ? `Série de ${streakToast} jours ! Continue demain.` : `${streakToast}-day streak! Come back tomorrow.`}
+        </div>
+      )}
       {/* Universal Dark Navy Header with Neon Yellow/Green Accent strictly for logo/header */}
       <PublicHeader
         currentView={currentView}

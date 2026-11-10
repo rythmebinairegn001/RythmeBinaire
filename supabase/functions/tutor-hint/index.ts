@@ -256,7 +256,17 @@ export function makeDeps(): Deps {
   const url = (env('SUPABASE_URL') || '').replace(/\/$/, '');
   const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY') || '';
   const anthropicKey = env('ANTHROPIC_API_KEY') || '';
+  const geminiKey = env('GEMINI_API_KEY') || '';
+  const groqKey = env('GROQ_API_KEY') || '';
   const model = env('TUTOR_MODEL') || 'claude-haiku-5-5';
+  const geminiModel = env('TUTOR_MODEL_GEMINI') || 'gemini-2.5-flash';
+  const groqModel = env('TUTOR_MODEL_GROQ') || 'llama-3.3-70b-versatile';
+  // Ordre d'essai des cerveaux : le premier qui répond gagne, sinon on passe au suivant.
+  // Par défaut : Claude (si clé), puis Gemini, puis Groq. Exemple pour l'IA gratuite d'abord :
+  //   TUTOR_PROVIDERS=gemini,groq,anthropic
+  const keys: Record<string, string> = { anthropic: anthropicKey, gemini: geminiKey, groq: groqKey };
+  const order = (env('TUTOR_PROVIDERS') || 'anthropic,gemini,groq')
+    .split(',').map((x) => x.trim()).filter((x) => keys[x]);
   const dailyQuota = Number(env('TUTOR_DAILY_QUOTA') || 20);
   const monthlyCap = Number(env('TUTOR_MONTHLY_CAP') || 3000);
   const dbHeaders = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
@@ -278,7 +288,7 @@ export function makeDeps(): Deps {
       dailyQuota,
       monthlyCap,
       model,
-      hasKey: anthropicKey.length > 0,
+      hasKey: order.length > 0,
       allowedOrigin: env('ALLOWED_ORIGIN') || '*',
     },
     async getUser(token) {
@@ -333,16 +343,61 @@ export function makeDeps(): Deps {
       return { today, month, exercise };
     },
     async callModel(system, userPrompt) {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model, max_tokens: 450, system, messages: [{ role: 'user', content: userPrompt }] }),
-        signal: AbortSignal.timeout(20000),
-      });
-      if (!r.ok) throw new Error(`anthropic ${r.status}`);
-      const data = await r.json();
-      // deno-lint-ignore no-explicit-any
-      return (data?.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
+      async function viaAnthropic(): Promise<string> {
+        const r = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+          body: JSON.stringify({ model, max_tokens: 450, system, messages: [{ role: 'user', content: userPrompt }] }),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!r.ok) throw new Error(`anthropic ${r.status}`);
+        const data = await r.json();
+        // deno-lint-ignore no-explicit-any
+        return (data?.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
+      }
+      async function viaGemini(): Promise<string> {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
+          method: 'POST',
+          headers: { 'x-goog-api-key': geminiKey, 'content-type': 'application/json' },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: system }] },
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            generationConfig: { maxOutputTokens: 600, temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } },
+          }),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!r.ok) throw new Error(`gemini ${r.status}`);
+        const data = await r.json();
+        // deno-lint-ignore no-explicit-any
+        return (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('\n');
+      }
+      async function viaGroq(): Promise<string> {
+        const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${groqKey}`, 'content-type': 'application/json' },
+          body: JSON.stringify({
+            model: groqModel,
+            max_tokens: 450,
+            temperature: 0.4,
+            messages: [{ role: 'system', content: system }, { role: 'user', content: userPrompt }],
+          }),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!r.ok) throw new Error(`groq ${r.status}`);
+        const data = await r.json();
+        return data?.choices?.[0]?.message?.content || '';
+      }
+      const runners: Record<string, () => Promise<string>> = { anthropic: viaAnthropic, gemini: viaGemini, groq: viaGroq };
+      let lastError: unknown = new Error('no provider');
+      for (const name of order) {
+        try {
+          const text = await runners[name]();
+          if (text && text.trim()) return text;
+        } catch (e) {
+          lastError = e; // on essaie le cerveau suivant
+        }
+      }
+      throw lastError;
     },
     async record(row) {
       const r = await rest('ai_hint_requests', {

@@ -51,8 +51,8 @@ export function isDeliverable(email: string | null | undefined): email is string
 
 export function buildMail(to: string, n: Pending, siteUrl: string): Mail {
   const body = (n.body || '').trim();
-  const text = `${body ? body + '\n\n' : ''}${siteUrl}`;
-  const html = `<p><strong>${escapeHtml(n.title)}</strong></p>${body ? `<p style="white-space:pre-wrap">${escapeHtml(body)}</p>` : ''}<p><a href="${escapeHtml(siteUrl)}">RythmeBinaireGn</a></p>`;
+  const text = `${body ? body + '\n\n' : ''}${siteUrl}\n\nTu peux couper ces e-mails dans ton tableau de bord. / You can turn these emails off in your dashboard.`;
+  const html = `<p><strong>${escapeHtml(n.title)}</strong></p>${body ? `<p style="white-space:pre-wrap">${escapeHtml(body)}</p>` : ''}<p><a href="${escapeHtml(siteUrl)}">RythmeBinaireGn</a></p><p style="color:#888;font-size:12px">Tu peux couper ces e-mails dans ton tableau de bord. / You can turn these emails off in your dashboard.</p>`;
   return { to, subject: n.title, text, html };
 }
 
@@ -109,9 +109,17 @@ export function makeDeps(): Deps {
   return {
     config: { cronSecret: env('CRON_SECRET') || '', apiKey, from, siteUrl: env('SITE_URL') || '', batch: 50 },
     async queueReminders() {
-      const r = await fetch(`${url}/rest/v1/rpc/queue_session_reminders`, { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: '{}' });
-      if (!r.ok) throw new Error('reminders failed');
-      return Number(await r.json()) || 0;
+      // 1) rappels de séances, 2) relances (jamais commencé / inactif), 3) série en danger. L'échec de l'un ne bloque pas l'autre.
+      let total = 0;
+      for (const fn of ['queue_session_reminders', 'queue_inactivity_reminders', 'queue_streak_reminders']) {
+        try {
+          const r = await fetch(`${url}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: '{}' });
+          if (r.ok) total += Number(await r.json()) || 0;
+        } catch {
+          // ignoré : on réessaiera au prochain passage
+        }
+      }
+      return total;
     },
     async fetchPending(limit) {
       const since = new Date(Date.now() - 2 * 86_400_000).toISOString();

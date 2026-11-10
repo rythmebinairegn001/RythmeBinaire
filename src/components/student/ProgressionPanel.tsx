@@ -12,6 +12,66 @@ interface Props {
 const DAYS_FR = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 const DAYS_EN = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+
+const GOAL_OPTIONS = [1, 2, 3];
+const goalKey = (userId?: string) => `rgbn-daily-goal-${userId || 'anon'}`;
+
+/** Objectif du jour : 1, 2 ou 3 leçons. Choix gardé sur cet appareil (simple confort, rien à migrer). */
+const DailyGoal: React.FC<{ completions: Completion[]; fr: boolean; now: Date; userId?: string }> = ({ completions, fr, now, userId }) => {
+  const [goal, setGoal] = useState<number>(() => {
+    try {
+      const v = Number(window.localStorage.getItem(goalKey(userId)));
+      return GOAL_OPTIONS.includes(v) ? v : 1;
+    } catch {
+      return 1;
+    }
+  });
+  const today = now.toISOString().slice(0, 10);
+  const doneToday = new Set(completions.filter((c) => c.completed_at.slice(0, 10) === today).map((c) => `${c.course_id}/${c.lesson_id}`)).size;
+  const reached = doneToday >= goal;
+  const pct = Math.min(100, Math.round((doneToday / goal) * 100));
+
+  const choose = (g: number) => {
+    setGoal(g);
+    try {
+      window.localStorage.setItem(goalKey(userId), String(g));
+    } catch {
+      // stockage indisponible : l'objectif reste valable pour cette visite
+    }
+  };
+
+  return (
+    <div id="daily-goal" className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-bold text-slate-900">
+          🎯 {fr ? 'Objectif du jour' : 'Daily goal'} : {Math.min(doneToday, goal)}/{goal} {fr ? (goal > 1 ? 'leçons' : 'leçon') : goal > 1 ? 'lessons' : 'lesson'}
+        </p>
+        <div className="flex items-center gap-1.5" role="group" aria-label={fr ? 'Choisir mon objectif' : 'Choose my goal'}>
+          {GOAL_OPTIONS.map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => choose(g)}
+              aria-pressed={goal === g}
+              className={`w-8 h-8 rounded-full text-xs font-bold border transition ${goal === g ? 'bg-emerald-500 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'}`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="h-2 rounded-full bg-slate-200 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div className={`h-full rounded-full transition-all ${reached ? 'bg-emerald-500' : 'bg-orange-400'}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-xs text-slate-600">
+        {reached
+          ? fr ? 'Objectif atteint, bravo ! Tu peux t’arrêter là ou continuer.' : 'Goal reached, well done! You can stop here or keep going.'
+          : fr ? `Encore ${goal - doneToday} leçon${goal - doneToday > 1 ? 's' : ''} pour atteindre ton objectif. Commence petit : 1 leçon par jour, c’est déjà beaucoup.` : `${goal - doneToday} more lesson${goal - doneToday > 1 ? 's' : ''} to reach your goal. Start small: 1 lesson a day is already a lot.`}
+      </p>
+    </div>
+  );
+};
+
 /** Série de jours + badges. Ton encourageant : jamais de culpabilisation si la série s'arrête. */
 export const ProgressionPanel: React.FC<Props> = ({ userId, lang, coursesCompleted }) => {
   const [completions, setCompletions] = useState<Completion[] | null>(null);
@@ -27,15 +87,16 @@ export const ProgressionPanel: React.FC<Props> = ({ userId, lang, coursesComplet
   }, [userId]);
 
   if (completions === null) return null;
-  return <ProgressionView completions={completions} lang={lang} coursesCompleted={coursesCompleted} />;
+  return <ProgressionView completions={completions} lang={lang} coursesCompleted={coursesCompleted} userId={userId} />;
 };
 
 /** Affichage pur (sans chargement) : facile à tester. `now` permet de figer la date dans les tests. */
-export const ProgressionView: React.FC<{ completions: Completion[]; lang: PreferredLanguage; coursesCompleted: number; now?: Date }> = ({
+export const ProgressionView: React.FC<{ completions: Completion[]; lang: PreferredLanguage; coursesCompleted: number; now?: Date; userId?: string }> = ({
   completions,
   lang,
   coursesCompleted,
   now = new Date(),
+  userId,
 }) => {
   const fr = lang === 'fr';
   const { streak, badges, lessonsCompleted } = summarize(completions, coursesCompleted, now);
@@ -84,6 +145,8 @@ export const ProgressionView: React.FC<{ completions: Completion[]; lang: Prefer
           <p className="text-xs text-slate-600">{message}</p>
         </div>
       </div>
+
+      <DailyGoal completions={completions} fr={fr} now={now} userId={userId} />
 
       <div className="space-y-3">
         <h2 className="font-display text-lg font-bold text-slate-900">

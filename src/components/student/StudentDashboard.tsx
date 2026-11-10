@@ -29,6 +29,7 @@ import { PathsSection } from './PathsSection';
 import { TutoringPanel } from './TutoringPanel';
 import { NotificationsPanel } from './NotificationsPanel';
 import { OfflinePanel } from './OfflinePanel';
+import { MansaraAiCard } from './MansaraAiCard';
 
 interface Props {
   user: UserProfile;
@@ -209,6 +210,9 @@ export const StudentDashboard: React.FC<Props> = ({
       <TutoringPanel userId={user.id} lang={lang} hidden={isChildAccount} />
 
       <ChatEntry lang={lang} hidden={isChildAccount} />
+
+      {/* Mansara AI : lien vers l'assistant IA (nouvel onglet), caché pour un compte enfant */}
+      <MansaraAiCard lang={lang} hidden={isChildAccount} />
 
       {/* 1c. Ma classe (code du professeur, messages) — caché pour un compte enfant */}
       <ClassPanel userId={user.id} lang={lang} hidden={isChildAccount} />
