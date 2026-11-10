@@ -107,7 +107,7 @@ export const MansaraChatDialog: React.FC<{
               {m.role === 'user' ? (
                 <div className="px-3 py-2 rounded-2xl text-sm break-words whitespace-pre-wrap bg-emerald-50 border border-emerald-200 text-slate-900">{m.content}</div>
               ) : (
-                <div className="px-3 py-2 rounded-2xl text-sm break-words bg-slate-100 border border-slate-200 text-slate-900 space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:p-2 [&_pre]:rounded-lg [&_pre]:bg-slate-200 [&_code]:text-[13px]">
+                <div className="px-3 py-2 rounded-2xl text-sm break-words bg-slate-100 border border-slate-200 text-slate-900 space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:overflow-x-auto [&_pre]:p-2 [&_pre]:rounded-lg [&_pre]:bg-[#0f172a] [&_pre]:text-[#e2e8f0] [&_pre_code]:text-[#e2e8f0] [&_pre_code]:bg-transparent [&_code]:text-[13px]">
                   <Markdown>{m.content}</Markdown>
                 </div>
               )}
