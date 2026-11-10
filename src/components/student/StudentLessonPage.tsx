@@ -13,6 +13,8 @@ import { getTranslation } from '../../lib/i18n';
 import { PublicCourseItem } from '../../data/coursesData';
 import { DetailedLesson, getCourseLessonsList } from '../../data/lessonsData';
 import { StudentCourseProgress } from '../../services/studentService';
+import { MansaraChatDialog } from './MansaraChat';
+import { getAssistantUrl } from '../../services/assistantService';
 
 interface Props {
   course: PublicCourseItem;
@@ -41,6 +43,7 @@ export const StudentLessonPage: React.FC<Props> = ({
 }) => {
   const t = getTranslation(lang);
   const [marking, setMarking] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
 
   // Content translation with automatic fallback to FR
   const translation = lesson.translations[lang] || lesson.translations.fr;
@@ -86,11 +89,31 @@ export const StudentLessonPage: React.FC<Props> = ({
           </span>
         </button>
 
-        {/* Lesson counter badge */}
-        <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-full bg-[var(--color-card-bg)] border border-[var(--color-card-border)] text-[var(--color-text-muted)]">
-          Leçon {currentIndex + 1} / {allCourseLessons.length}
-        </span>
+        <div className="flex items-center gap-2">
+          {/* Mansara AI : l'IA connaît le cours et la leçon ouverts (visible seulement si le chat intégré est branché) */}
+          {getAssistantUrl() !== null && (
+            <button
+              type="button"
+              onClick={() => setAskOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--color-card-bg)] border border-[var(--color-card-border)] text-[var(--color-text-main)] hover:opacity-80 transition"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>{lang === 'en' ? 'Ask Mansara AI' : 'Demander à Mansara AI'}</span>
+            </button>
+          )}
+          {/* Lesson counter badge */}
+          <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-full bg-[var(--color-card-bg)] border border-[var(--color-card-border)] text-[var(--color-text-muted)]">
+            Leçon {currentIndex + 1} / {allCourseLessons.length}
+          </span>
+        </div>
       </div>
+      {askOpen && (
+        <MansaraChatDialog
+          lang={lang}
+          onClose={() => setAskOpen(false)}
+          context={{ course: courseTranslation.title, lesson: translation.title }}
+        />
+      )}
 
       {/* Main Lesson Reader Card */}
       <article className="bg-[var(--color-card-bg)] rounded-3xl border border-[var(--color-card-border)] shadow-sm overflow-hidden">
